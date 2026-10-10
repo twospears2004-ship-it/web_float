@@ -45,6 +45,7 @@ app.innerHTML = `
       <div id="ability-bar" class="ability-bar" hidden>${Object.entries(abilityDefinitions).map(([id,a]) => `<button data-ability="${id}" title="${a.description}"><kbd>${a.key}</kbd><strong>${a.name}</strong><span data-cooldown="${id}">준비</span></button>`).join('')}</div>
     </section>
     <aside class="sidebar" aria-label="섬 정비와 탐험">
+      <section id="first-voyage" class="first-voyage" hidden aria-labelledby="first-voyage-title"><span class="eyebrow">처음 항해하는 선장님께</span><h2 id="first-voyage-title"></h2><p id="first-voyage-text"></p><button id="first-voyage-action" class="primary-button"></button><small>언제든 상단 ?에서 조작 안내를 다시 볼 수 있습니다.</small></section>
       <div class="sidebar-tabs"><button class="active" data-tab="build">섬 정비</button><button data-tab="voyage">해역 <span id="cleared-count">0/3</span></button><button data-tab="fleet" hidden>함대</button><button data-tab="campaign" hidden>캠페인</button><button data-tab="atlas" hidden>기록</button></div>
       <div id="build-panel" class="tab-panel">
         <div class="section-heading"><span class="eyebrow">BUILD & GROW</span><h2>다음 항해를 준비하세요</h2><p>무장 · 생산 · 연구로 섬을 키우세요.</p></div>
@@ -82,10 +83,12 @@ app.innerHTML = `
   <div id="start-overlay" class="overlay">
     <div class="start-dialog" role="dialog" aria-modal="true" aria-labelledby="start-title">
       <span class="eyebrow">A VOYAGE BEYOND THE HORIZON</span><div class="start-emblem">✦</div><h1 id="start-title">TIDEHOLD</h1><p class="start-subtitle">작은 섬에서, 더 먼 바다로.</p>
-      <p class="start-description">무장·생산·연구 시설로 나만의 섬을 키우세요.<br/>바다에서 회수한 자원으로 더 먼 항해를 준비합니다.</p>
+      <p class="start-description">내 섬을 키우고, 바다를 탐험하는 싱글플레이 게임입니다.</p>
+      <ol class="start-loop"><li><b>1 · 준비</b><span>빈 타일에 무장·농장 건설</span></li><li><b>2 · 탐험</b><span>임무에 출항 · 사거리 안에서 자동 공격</span></li><li><b>3 · 성장</b><span>보상으로 섬 확장 · 연구 · 함대 생산</span></li></ol>
       <button id="continue-button" class="continue-button" hidden>저장한 항해 이어하기</button>
+      <button id="beginner-start" class="primary-button beginner-start">처음부터 시작 · 추천 조작으로 <span>→</span></button><p class="start-save-note">WASD로 섬 이동 · 무장은 자동 공격 · 캠페인은 5초마다 자동 저장</p>
       <div class="experience-selector"><button class="active" data-experience="campaign">새 캠페인 <small>성장 · 임무 · 자동 저장</small></button><button data-experience="training">비교 훈련 <small>같은 조건의 짧은 3전투</small></button></div>
-      <div class="mode-options"><button data-start="direct"><span class="mode-number">A / HELM</span><strong>실시간 조종</strong><p>WASD로 섬을 움직입니다.<br/>교전 중에도 기동할 수 있습니다.</p><span class="mode-cta">직접 항해하기 →</span></button><button data-start="destination"><span class="mode-number">B / ROUTE</span><strong>목적지 선택</strong><p>항로를 선택해 자동 항해합니다.<br/>교전 위치가 고정됩니다.</p><span class="mode-cta">항로 선택하기 →</span></button></div>
+      <div class="mode-options"><button data-start="direct"><span class="mode-number">직접 이동 · WASD</span><strong>실시간 조종</strong><p>WASD로 섬을 움직입니다.<br/>교전 중에도 기동할 수 있습니다.</p><span class="mode-cta">직접 항해하기 →</span></button><button data-start="destination"><span class="mode-number">이동을 맡기고 싶다면</span><strong>목적지 선택</strong><p>항로를 선택해 자동 항해합니다.<br/>교전 위치가 고정됩니다.</p><span class="mode-cta">항로 선택하기 →</span></button></div>
       <small class="comparison-note">같은 초기 섬 · 같은 적 배치 · 같은 보상<br/>모드 선택 시 새 원정으로 시작합니다.</small>
     </div>
   </div>
@@ -156,7 +159,7 @@ function start(mode, confirmed = false) {
   if (game.campaign) { showTab('campaign'); persist(); }
 }
 function clearTool() { ui.tool = null; ui.moving = null; update(true); }
-function openModes() { game.paused = true; ui.modeSwitch = !!game.campaign && ui.started; keys.clear(); saved = loadCampaign(); $('continue-button').hidden = !saved.game; $('start-overlay').hidden = false; $('pause-overlay').hidden = true; $('end-overlay').hidden = true; document.querySelector('.comparison-note').innerHTML=ui.modeSwitch?'섬 · 자원 · 임무 진행을 유지합니다.<br/>이동 방식만 변경합니다.':'같은 초기 섬 · 같은 적 배치 · 같은 보상<br/>모드 선택 시 새 원정으로 시작합니다.'; document.querySelector('[data-start]').focus(); }
+function openModes() { game.paused = true; ui.modeSwitch = !!game.campaign && ui.started; keys.clear(); saved = loadCampaign(); $('continue-button').hidden = !saved.game; $('beginner-start').hidden=ui.modeSwitch; $('start-overlay').hidden = false; $('pause-overlay').hidden = true; $('end-overlay').hidden = true; document.querySelector('.comparison-note').innerHTML=ui.modeSwitch?'섬 · 자원 · 임무 진행을 유지합니다.<br/>이동 방식만 변경합니다.':'같은 초기 섬 · 같은 적 배치 · 같은 보상<br/>모드 선택 시 새 원정으로 시작합니다.'; document.querySelector('[data-start]').focus(); }
 function togglePause(force) {
   if (!ui.started || game.phase !== 'playing' || !$('start-overlay').hidden || !$('help-overlay').hidden || !$('settings-overlay').hidden) return;
   game.paused = force ?? !game.paused; keys.clear(); $('pause-overlay').hidden = !game.paused; update(true);
@@ -180,7 +183,8 @@ function chooseTile(x, z, edge, facilityId) {
   }
   if (changed) { ui.tool = null; ui.moving = null; }
   update(true); if (changed) persist();
-  if(showDetails)$('facility-panel').scrollIntoView({block:'nearest',behavior:'instant'});
+  if(changed&&game.campaign?.stage==='harbor'&&!game.campaign.completed.length)document.querySelector('.sidebar').scrollTop=0;
+  else if(showDetails)$('facility-panel').scrollIntoView({block:'nearest',behavior:'instant'});
 }
 function setTool(tool) {
   if (!canManage(game) || game.paused) { game.message = '항해와 전투를 마친 뒤 섬을 정비하세요.'; update(true); return; }
@@ -188,6 +192,14 @@ function setTool(tool) {
   ui.tool = ui.tool === tool ? null : tool; ui.moving = null;ui.commandMode=false;ui.fleetFocus=false;if(view)view.mapFocus=null; showTab('build'); update(true);
 }
 document.querySelectorAll('[data-start]').forEach(b => b.addEventListener('click', () => start(b.dataset.start)));
+$('beginner-start').addEventListener('click',()=>{ui.experience='campaign';ui.modeSwitch=false;document.querySelectorAll('[data-experience]').forEach(b=>b.classList.toggle('active',b.dataset.experience==='campaign'));start('direct');});
+$('first-voyage-action').addEventListener('click',()=>{
+  if(!game.campaign || game.paused || game.phase!=='playing')return;
+  if(game.campaign.stage!=='harbor'){showTab('voyage');return;}
+  if(game.campaign.completed.length){showTab('build');return;}
+  if(game.facilities.filter(f=>['cannon','mortar','rail','frost'].includes(f.type)).length<2 && game.resources>=100){ui.board=true;setTool('mortar');$('placement-panel').scrollIntoView({block:'nearest'});}
+  else{showTab('campaign');$('mission-list').scrollIntoView({block:'nearest'});}
+});
 document.querySelectorAll('[data-experience]').forEach(b => b.addEventListener('click', () => { ui.experience = b.dataset.experience; ui.modeSwitch = false; document.querySelectorAll('[data-experience]').forEach(n => n.classList.toggle('active', n === b)); }));
 $('confirm-new').addEventListener('click', () => start(ui.pendingMode, true));
 $('cancel-new').addEventListener('click', () => { $('replace-overlay').hidden = true; document.querySelector('[data-start]').focus(); });
@@ -535,7 +547,18 @@ function updateCampaign(force) {
     $('research-list').innerHTML = technologies.map(t => { const level = c.tech[t.id] || 0,cost=researchCost(game,t),locked=c.chapter<(t.unlock || 0),required=researchChartRequirement(c,t),chartLocked=chartCount<required; return `<button data-research="${t.id}" class="research-card" ${c.stage !== 'harbor' || game.paused || locked || chartLocked || level >= t.max || c.research < cost.points || game.resources<cost.materials ? 'disabled' : ''}><span><strong>${t.name} ${level}/${t.max}</strong><small>${t.description}</small></span><b>${locked ? `${chapters[t.unlock].name} 해금` : level >= t.max ? '완료' : chartLocked?`완성 해도 ${chartCount}/${required}`:`자료 ${cost.points}${cost.materials?` · 자원 ${cost.materials}`:''}`}</b></button>`; }).join('');
   }
 }
+function updateFirstVoyage(){
+  const c=game.campaign,visible=ui.started&&c&&c.completed.length<2&&!game.operation;
+  $('first-voyage').hidden=!visible;if(!visible)return;
+  const armed=game.facilities.filter(f=>['cannon','mortar','rail','frost'].includes(f.type)).length>=2;
+  const preparing=c.stage==='harbor',growing=preparing&&c.completed.length>0;
+  $('first-voyage-title').textContent=growing?'3 · 보상으로 섬을 키우세요':preparing?'1 · 준비하고 첫 임무에 출항하세요':'2 · 적에게 접근하면 무장이 자동 공격합니다';
+  $('first-voyage-text').textContent=growing?'섬 정비에서 확장·농장을 선택해 자원을 투자하세요. 농장은 생산한 자원을 클릭해 회수합니다. 연구와 함대는 진행하면서 열립니다.':preparing?(armed?'무장이 준비됐습니다. 캠페인의 첫 번째 임무 카드를 눌러 출항하세요.':'추천: 박격포(자원 100)를 선택하고 배치도의 빈 타일을 클릭하세요. 기존 연사포만으로 바로 출항해도 됩니다.'):(c.pendingChoice?'전투 보상을 골라야 다음 목표로 진행합니다. 아래 버튼으로 항로와 회수품 선택을 확인하세요.':game.mode==='direct'?'WASD / 방향키로 이동하세요. 해역 탭에서 현재 목표를 확인하고 지도 표시 쪽으로 접근하세요. P로 잠시 멈출 수 있습니다.':'목표까지 자동으로 항해합니다. 교전은 자동 진행되며, 목표를 마친 뒤 해역 탭에서 다음 항로·회수품을 선택하세요.');
+  $('first-voyage-action').textContent=growing?'섬 정비 · 성장 시설 보기':preparing&&!armed&&game.resources>=100?'박격포 선택 · 배치도 열기':preparing?'첫 임무 목록 보기':'현재 목표 · 회수품 보기';
+  $('first-voyage-action').disabled=game.paused||game.phase!=='playing';
+}
 function update(force = false) {
+  updateFirstVoyage();
   renderSites(); const rules = rulesFor(game), sites = sitesFor(game); updateCampaign(force);updateFleet();updateAtlas(force);
   $('resources').textContent = game.resources; $('hull-label').textContent = `${Math.ceil(game.hull)} / ${game.maxHull}`;
   const hullRatio = game.hull / game.maxHull; $('hull-fill').style.width = `${hullRatio * 100}%`; $('hull-fill').classList.toggle('low', hullRatio < 0.35);
