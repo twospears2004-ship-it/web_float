@@ -5,7 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import {decodeSave} from '../src/save.js';
-import {captureNativeOutput,recordNativeFailure} from './native-diagnostics.mjs';
+import {captureNativeOutput,recordNativeFailure,observeNativeClose} from './native-diagnostics.mjs';
 const packaged=process.argv.find(a=>a.startsWith('--executable='))?.slice(13),id=new Date().toISOString().replace(/[:.]/g,'-');
 const profile=path.resolve('artifacts','desktop-profiles',id),records=[],errors=[];await fs.mkdir(profile,{recursive:true});
 let app,page;const nativeOutput=[];
@@ -13,7 +13,7 @@ async function launch(clear=false){
   const env={...process.env,TIDEHOLD_TEST_MODE:'1',TIDEHOLD_PROFILE_DIR:profile,TIDEHOLD_CLEAR_RENDERER_CACHE:clear?'1':'0'};delete env.ELECTRON_RUN_AS_NODE;
   app=await electron.launch({...(packaged?{executablePath:path.resolve(packaged),args:[]}:{args:['.']}),cwd:process.cwd(),env,timeout:60000});
   captureNativeOutput(app,nativeOutput);
-  const page=await app.firstWindow();page.on('pageerror',e=>errors.push(e.message));await page.waitForLoadState('domcontentloaded');await expect(page.locator('#start-overlay')).toBeVisible();
+  const page=await app.firstWindow();await observeNativeClose(app);page.on('pageerror',e=>errors.push(e.message));await page.waitForLoadState('domcontentloaded');await expect(page.locator('#start-overlay')).toBeVisible();
   assert.equal(await page.evaluate(()=>window.__TIDEHOLD__!==undefined),false);assert.deepEqual(await page.evaluate(()=>({require:typeof window.require,process:typeof window.process,desktop:window.tideholdDesktop.version})),{require:'undefined',process:'undefined',desktop:1});
   assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isVisible()),false);return page;
 }
@@ -52,5 +52,5 @@ try{
   const durable=await disk();assert.equal(durable.resources,266);assert.equal(durable.facilities.find(f=>f.type==='farm').level,2);
   page=await launch(true);await page.locator('#continue-button').click();current=await page.evaluate(()=>JSON.parse(localStorage.getItem('tidehold.campaign.v1')).payload);assert.equal(current.resources,266);assert.equal(current.facilities.find(f=>f.type==='farm').level,2);await close();
   records.push({action:'forced renderer storage failure still saves durable farm upgrade and restarts',resources:266,restored:true});
-  assert.equal(errors.length,0);const report={date:new Date().toISOString(),type:'isolated native application',packaged:!!packaged,executable:packaged || 'development Electron',profile,runtime,rendererNode:false,visibleWindows:false,records,errors};await fs.writeFile(`artifacts/desktop-${packaged?'packaged':'development'}.json`,JSON.stringify(report,null,2));console.log(JSON.stringify(report));
+  assert.equal(errors.length,0);const report={date:new Date().toISOString(),type:'isolated native application',packaged:!!packaged,executable:packaged || 'development Electron',profile,runtime,rendererNode:false,visibleWindows:false,records,errors,nativeOutput};await fs.writeFile(`artifacts/desktop-${packaged?'packaged':'development'}.json`,JSON.stringify(report,null,2));console.log(JSON.stringify(report));
 }catch(error){await recordNativeFailure({app,page,profile,error,errors,logs:nativeOutput,records,executable:packaged||'development Electron'});throw error;}finally{if(app)await app.close();}

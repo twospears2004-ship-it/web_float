@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import {decodeSave,SAVE_KEY} from '../src/save.js';
 import {canonicalSavedValue} from './save-comparison.mjs';
 import {getSiege} from '../src/siege-content.js';
-import {captureNativeOutput,recordNativeFailure} from './native-diagnostics.mjs';
+import {captureNativeOutput,recordNativeFailure,observeNativeClose} from './native-diagnostics.mjs';
 const pkg=JSON.parse(await fs.readFile('artifacts/desktop-package.json','utf8'));
 const arg=(name,fallback)=>process.argv.find(a=>a.startsWith(`--${name}=`))?.slice(name.length+3)||fallback;
 const fixture=arg('fixture','tests/fixtures/endgame-earned-coral-network-result.json'),output=arg('output','artifacts/endgame-native');
@@ -22,7 +22,7 @@ const stored=page=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)),SAVE
 const disk=async()=>decodeSave(await fs.readFile(path.join(profile,'saves','campaign.json'),'utf8'));
 async function launch(clear=false){
   const env={...process.env,TIDEHOLD_TEST_MODE:'1',TIDEHOLD_PROFILE_DIR:profile,TIDEHOLD_CLEAR_RENDERER_CACHE:clear?'1':'0'};delete env.ELECTRON_RUN_AS_NODE;
-  app=await electron.launch({executablePath:pkg.executable,args:[],cwd:process.cwd(),env,timeout:60000});captureNativeOutput(app,nativeOutput);const page=await app.firstWindow();await page.waitForLoadState('domcontentloaded');
+  app=await electron.launch({executablePath:pkg.executable,args:[],cwd:process.cwd(),env,timeout:60000});captureNativeOutput(app,nativeOutput);const page=await app.firstWindow();await observeNativeClose(app);await page.waitForLoadState('domcontentloaded');
   assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isVisible()),false);assert.equal(await page.evaluate(()=>window.__TIDEHOLD__!==undefined),false);assert.equal(await page.evaluate(()=>typeof process!=='undefined'||typeof require!=='undefined'),false);
   page.on('pageerror',e=>errors.push(e.message));page.on('requestfailed',r=>errors.push(r.failure()?.errorText));page.on('request',r=>{if(!['tidehold://game/','blob:','data:'].some(prefix=>r.url().startsWith(prefix)))remoteRequests.push(r.url());});return page;
 }
@@ -43,5 +43,5 @@ try{
   page=await launch(true);await expect(page.locator('#save-status')).toContainText('PC 저장');await page.locator('#continue-button').click();await expect(page.locator('#pause-overlay')).toBeVisible();same((await stored(page)).payload,saved);
   await expect(page.locator('#scene-title')).toHaveText(expectedTitle);await expect(page.locator('#mission-progress')).toContainText(expectedPower);
   await page.screenshot({path:`${output}-cache-restored.png`});await close();records.push({action:'active remote generators and three cores survive cache loss',restored:true,displayedTitle:expectedTitle,displayedPower:expectedPower});
-  assert.deepEqual(errors,[]);assert.deepEqual(remoteRequests,[]);const report={date:new Date().toISOString(),kind:'actual-time isolated native post-ending save, unlock and cache-loss recovery',fixture,executable:pkg.executable,gameBundle:pkg.gameBundle,profile,realSeconds:(Date.now()-start)/1000,noDevHooks:true,noVirtualClock:true,records,errors,remoteRequests};await fs.writeFile(`${output}-production.json`,JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+  assert.deepEqual(errors,[]);assert.deepEqual(remoteRequests,[]);const report={date:new Date().toISOString(),kind:'actual-time isolated native post-ending save, unlock and cache-loss recovery',fixture,executable:pkg.executable,gameBundle:pkg.gameBundle,profile,realSeconds:(Date.now()-start)/1000,noDevHooks:true,noVirtualClock:true,records,errors,remoteRequests,nativeOutput};await fs.writeFile(`${output}-production.json`,JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
 }catch(error){await recordNativeFailure({app,page,profile,error,errors,logs:nativeOutput,records,executable:pkg.executable});throw error;}finally{if(app)await app.close();}
