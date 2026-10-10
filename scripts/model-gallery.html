@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>TIDEHOLD guardian art review</title><link rel="icon" href="data:,">
+<style>*{box-sizing:border-box}body{margin:0;background:#122b35;color:#e4e6d6;font-family:'Malgun Gothic',sans-serif}h1{margin:22px 28px 4px;font:26px Georgia,serif;letter-spacing:3px}header p{font-size:12px;color:#9db9b7;margin:0 28px 20px}main{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:0 24px 24px}article{height:300px;position:relative;background:#214450;border:1px solid #bbd1c429;border-radius:8px;overflow:hidden}article div{height:248px}article h2{font-size:14px;position:relative;margin:0 14px 5px}article p{font-size:11px;color:#98bcb7;position:relative;margin:0 14px}canvas{position:fixed;inset:0;pointer-events:none}</style></head>
+<body><header><h1>TIDEHOLD · GUARDIANS</h1><p>자체 절차적 모델 · 공통 전투 규칙과 분리된 12해역 외형 · 개발용 아트 검토</p></header><main></main>
+<script type="module">
+import * as THREE from 'three';
+import {bossModel,animateBoss} from '../src/models.js';
+import {chapters,bossPatterns,bossTactics} from '../src/campaign-content.js';
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});renderer.setPixelRatio(1);renderer.setSize(innerWidth,innerHeight);renderer.setScissorTest(true);document.body.append(renderer.domElement);
+const panels=chapters.map((ch,i)=>{
+  const panel=document.createElement('article');panel.innerHTML=`<div></div><h2>${String(i+1).padStart(2,'0')} · ${ch.boss}</h2><p>${ch.name} · ${bossTactics[bossPatterns[i]].attack}</p>`;document.querySelector('main').append(panel);
+  const scene=new THREE.Scene();scene.add(new THREE.HemisphereLight(0xe9f3dd,0x254052,2));const sun=new THREE.DirectionalLight(0xffdfbb,2.8);sun.position.set(-7,12,8);scene.add(sun);
+  const model=bossModel(ch.id);scene.add(model);animateBoss(model,1.2,1,false);
+  const water=new THREE.Mesh(new THREE.CircleGeometry(8,32),new THREE.MeshStandardMaterial({color:ch.color,roughness:0.8}));water.rotation.x=-Math.PI/2;water.position.y=-0.7;scene.add(water);
+  const camera=new THREE.PerspectiveCamera(40,1,0.1,100);camera.position.set(12,13,19);camera.lookAt(0,1.7,0);
+  return {panel,scene,camera};
+});
+for(const {panel,scene,camera} of panels){const r=panel.querySelector('div').getBoundingClientRect();camera.aspect=r.width/r.height;camera.updateProjectionMatrix();renderer.setViewport(r.left,innerHeight-r.bottom,r.width,r.height);renderer.setScissor(r.left,innerHeight-r.bottom,r.width,r.height);renderer.render(scene,camera);}
+window.__galleryReady=true;
+</script></body></html>

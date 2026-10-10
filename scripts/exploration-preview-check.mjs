@@ -1,0 +1,17 @@
+// Actual-time built game, isolated Chrome profile and normal-earned save import.
+import {chromium,expect} from '@playwright/test';
+import fs from 'node:fs/promises';
+const browser=await chromium.launch({channel:'chrome',headless:true});
+try{
+  const page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[],remoteRequests=[];
+  page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});page.on('requestfailed',r=>errors.push(r.failure()?.errorText));page.on('request',r=>{if(!r.url().startsWith('http://127.0.0.1:4173')&&!r.url().startsWith('blob:')&&!r.url().startsWith('data:'))remoteRequests.push(r.url());});
+  await page.goto('http://127.0.0.1:4173');await page.locator('[data-start="destination"]').click();if(await page.evaluate(()=>window.__TIDEHOLD__!==undefined))throw new Error('Development diagnostics exposed');
+  await page.locator('#save-file').setInputFiles('artifacts/exploration-fixtures/explore-coral-1-node-0-start.json');await page.locator('#resume-button').click();await page.locator('[data-tab="voyage"]').click();await expect(page.locator('[data-site-card="explore-node-7"]')).toBeHidden();
+  const layout=await page.evaluate(()=>{const o=document.querySelector('#objective').getBoundingClientRect(),h=document.querySelector('#mission-hud').getBoundingClientRect();return {objectiveRight:o.right,hudLeft:h.left};});if(layout.objectiveRight>layout.hudLeft-12)throw new Error('Exploration objective overlaps its HUD');
+  const saved=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('tidehold.campaign.v1')).payload),before=await saved(),start=Date.now();await page.locator('[data-site="explore-node-0"]').click();await page.waitForTimeout(15000);await page.screenshot({path:'artifacts/exploration-production-combat.png'});await page.keyboard.press('p');await expect(page.locator('#pause-overlay')).toBeVisible();await page.waitForFunction(()=>JSON.parse(localStorage.getItem('tidehold.campaign.v1')).payload.paused===true);
+  const state=await saved();if(state.operation.kind!=='explore'||state.operation.round!==0||state.shots<=before.shots||Math.hypot(state.island.x-before.island.x,state.island.z-before.island.z)<8)throw new Error('Built exploration navigation/combat stalled');
+  await page.reload();await page.locator('#continue-button').click();await expect(page.locator('#pause-overlay')).toBeVisible();await page.reload();const restored=await saved();
+  for(const key of ['operation','sites','enemies','fleet'])if(JSON.stringify(restored[key])!==JSON.stringify(state[key]))throw new Error(`Restored ${key} differs`);
+  if(JSON.stringify(restored.campaign.pendingChoice)!==JSON.stringify(state.campaign.pendingChoice))throw new Error('Restored choice differs');
+  const report={date:new Date().toISOString(),kind:'actual-time built exploration, normal-earned import',browser:browser.version(),realElapsedSeconds:(Date.now()-start)/1000,moved:Math.hypot(state.island.x-before.island.x,state.island.z-before.island.z),shots:state.shots-before.shots,discovered:state.operation.visible.length,surveyed:state.sites.filter(s=>s.cleared).length,restored:true,noDevHooks:true,errors,remoteRequests};await fs.writeFile('artifacts/exploration-production.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));if(errors.length||remoteRequests.length)throw new Error('Built exploration browser errors');
+}finally{await browser.close();}

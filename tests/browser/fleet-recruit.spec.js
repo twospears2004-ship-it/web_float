@@ -1,0 +1,13 @@
+import {test,expect} from '@playwright/test';
+const snapshot=page=>page.evaluate(()=>window.__TIDEHOLD__.snapshot());
+test('earned field shipyard produces a sixth ship clear of parked allies and saves its completed move',async({page})=>{
+  test.setTimeout(120000);const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.clock.install();await page.goto('/');await page.locator('[data-start="destination"]').click();
+  await page.locator('#save-file').setInputFiles('artifacts/colony-fixtures/coral-6-harbor.json');await page.locator('#resume-button').click();await page.locator('[data-tab="fleet"]').click();await page.locator('#build-shipyard').click();await page.locator('[data-tile="-1,0"]').click();await page.locator('[data-tab="fleet"]').click();
+  for(let i=0;i<5;i++)await page.locator('[data-recruit="skiff"]').click();await page.locator('[data-tab="campaign"]').click();await page.locator('[data-defense="defense-coral-1"]').click();await page.keyboard.press('f');await page.keyboard.press('h');
+  await page.locator('[data-tab="fleet"]').click();const before=await snapshot(page);expect(before.fleet.units.length).toBe(5);expect(before.operation.waiting).toBe(true);await page.locator('[data-recruit="skiff"]').click();
+  let g=await snapshot(page),u=g.fleet.units.at(-1);expect(g.resources).toBe(before.resources-45);expect(g.fleet.units.length).toBe(6);for(const v of g.fleet.units.filter(v=>v.id!==u.id))expect(Math.hypot(u.x-v.x,u.z-v.z)).toBeGreaterThan(1.8);
+  await page.locator(`[data-unit-select="${u.id}"]`).click();const map=await page.locator('#minimap').boundingBox(),goal={x:60,z:50};await page.mouse.click(map.x+(115+goal.x*0.65)/230*map.width,map.y+(100+goal.z*0.65)/180*map.height);await page.clock.runFor(700);
+  const point=await page.evaluate(p=>window.__TIDEHOLD__.projectWorld({...p,y:0.6}),goal);await page.mouse.click(point.x,point.y,{button:'right'});expect((await snapshot(page)).fleet.units.at(-1).command.type).toBe('move');await page.clock.runFor(20000);
+  g=await snapshot(page);u=g.fleet.units.at(-1);expect(u.command.type).toBe('hold');expect(Math.hypot(u.x-goal.x,u.z-goal.z)).toBeLessThan(2);expect(g.operation.waiting).toBe(true);await page.screenshot({path:'artifacts/fleet-field-recruit.png'});
+  await page.keyboard.press('p');await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));const saved=await snapshot(page);await page.clock.resume();await page.reload();await page.locator('#continue-button').click();const restored=await snapshot(page);expect(restored.fleet).toEqual(saved.fleet);expect(restored.resources).toBe(saved.resources);expect(restored.operation).toEqual(saved.operation);expect(errors).toEqual([]);
+});

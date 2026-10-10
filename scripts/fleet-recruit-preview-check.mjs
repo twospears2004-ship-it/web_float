@@ -1,0 +1,19 @@
+// Real-time built game, normal-earned file import and paid field recruitment.
+import {chromium,expect} from '@playwright/test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+const browser=await chromium.launch({channel:'chrome',headless:true});
+try{
+  const start=Date.now(),page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[],remoteRequests=[];
+  page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});page.on('requestfailed',r=>errors.push(r.failure()?.errorText));page.on('request',r=>{if(!r.url().startsWith('http://127.0.0.1:4173')&&!r.url().startsWith('blob:')&&!r.url().startsWith('data:'))remoteRequests.push(r.url());});
+  await page.goto('http://127.0.0.1:4173');await page.locator('[data-start="destination"]').click();if(await page.evaluate(()=>window.__TIDEHOLD__!==undefined))throw new Error('Development diagnostics exposed');
+  await page.locator('#save-file').setInputFiles('artifacts/exploration-fixtures/explore-coral-1-node-0-start.json');await page.locator('#resume-button').click();await page.locator('[data-tab="fleet"]').click();
+  for(let i=0;i<3;i++)await page.locator('[data-recruit="skiff"]').click();await page.waitForTimeout(3000);await page.keyboard.press('f');await page.keyboard.press('h');
+  const saved=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('tidehold.campaign.v1')).payload),before=await saved();assert.equal(before.fleet.units.length,5);await page.locator('[data-recruit="skiff"]').click();const born=await saved(),unit=born.fleet.units.at(-1);assert.equal(born.fleet.units.length,6);assert.equal(born.resources,before.resources-45);
+  for(const peer of born.fleet.units.filter(u=>u.id!==unit.id))if(Math.hypot(unit.x-peer.x,unit.z-peer.z)<=1.8)throw new Error('New field ship overlaps a parked ally');
+  await page.locator(`[data-unit-select="${unit.id}"]`).click();await page.keyboard.press('h');await page.locator('[data-tab="voyage"]').click();await page.locator('[data-site="explore-node-0"]').click();await expect(page.locator('#send-survey')).toBeEnabled({timeout:90000});await page.locator('#send-survey').click();await expect(page.locator('#field-choice')).toBeVisible({timeout:30000});
+  await page.screenshot({path:'artifacts/fleet-field-production.png'});await page.keyboard.press('p');await expect(page.locator('#pause-overlay')).toBeVisible();await page.waitForFunction(()=>{const g=JSON.parse(localStorage.getItem('tidehold.campaign.v1')).payload;return g.paused&&g.sites[0].cleared;});const state=await saved(),arrived=state.fleet.units.find(u=>u.id===unit.id),site=state.catalog[0];
+  assert.equal(state.sites[0].cleared,true);assert.equal(arrived.command.type,'hold');if(Math.hypot(arrived.x-site.x,arrived.z-site.z)>=2)throw new Error('The recruited ship did not finish its survey move');
+  await page.reload();await page.locator('#continue-button').click();await expect(page.locator('#pause-overlay')).toBeVisible();await page.reload();const restored=await saved();for(const key of ['fleet','operation','resources','sites'])assert.deepEqual(restored[key],state[key]);assert.deepEqual(restored.campaign.pendingChoice,state.campaign.pendingChoice);
+  const report={date:new Date().toISOString(),kind:'actual-time paid field recruitment and survey move in built game',browser:browser.version(),realElapsedSeconds:(Date.now()-start)/1000,fleet:state.fleet.units.length,paidSixthShip:45,moved:Math.hypot(arrived.x-unit.x,arrived.z-unit.z),surveyed:state.sites.filter(s=>s.cleared).length,restored:true,noDevHooks:true,errors,remoteRequests};await fs.writeFile('artifacts/fleet-field-production.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));if(errors.length||remoteRequests.length)throw new Error('Built field recruitment errors');
+}finally{await browser.close();}

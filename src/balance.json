@@ -1,0 +1,34 @@
+{
+  "step": 0.016666666666666666,
+  "tileSize": 3.4,
+  "maxTileRadius": 3,
+  "initialResources": 120,
+  "initialHull": 280,
+  "moveSpeed": 9,
+  "worldLimit": 110,
+  "arrivalDistance": 14,
+  "activationRange": 30,
+  "expansionCost": 45,
+  "expansionHull": 25,
+  "repairCost": 30,
+  "repairAmount": 100,
+  "salvageRate": 0.6,
+  "maxLevel": 3,
+  "upgradeCostScale": 0.7,
+  "upgradeDamageScale": 0.5,
+  "upgradeRangePerLevel": 2,
+  "weapons": {
+    "cannon": { "name": "연사포", "cost": 65, "damage": 16, "range": 20, "interval": 0.7, "splash": 0, "description": "빠른 단일 공격 · 가까운 적을 안정적으로 제압" },
+    "mortar": { "name": "박격포", "cost": 100, "damage": 29, "range": 25, "interval": 2.1, "splash": 7, "description": "느린 범위 공격 · 모여 있는 적에게 효과적" }
+  },
+  "enemies": {
+    "crawler": { "name": "산호 포식자", "hp": 72, "speed": 3.2, "damage": 10, "range": 8, "interval": 1.25, "reward": 50, "radius": 1.8 },
+    "nest": { "name": "침식 포대", "hp": 280, "speed": 0, "damage": 18, "range": 31, "interval": 1.6, "reward": 140, "radius": 3.3 },
+    "leviathan": { "name": "심해 수호자", "hp": 650, "speed": 2.4, "damage": 27, "range": 10, "interval": 1.1, "reward": 240, "radius": 3.5 }
+  },
+  "sites": [
+    { "id": "shoal", "name": "산호 여울", "label": "01", "danger": "낮음", "tier": 1, "x": 0, "z": -44, "reward": 100, "summary": "산호 포식자 2마리", "hint": "첫 원정에 적합합니다. 박격포의 범위 공격을 시험해 보세요.", "enemies": [{ "type": "crawler", "dx": -3, "dz": 0 }, { "type": "crawler", "dx": 3, "dz": -2 }] },
+    { "id": "outpost", "name": "버려진 포대", "label": "02", "danger": "보통", "tier": 2, "x": 46, "z": -52, "reward": 190, "summary": "침식 포대 1기 + 포식자 1마리", "hint": "고정 포대는 긴 사거리를 가집니다. 출발 전에 무장을 강화하세요.", "enemies": [{ "type": "nest", "dx": 0, "dz": 0 }, { "type": "crawler", "dx": -6, "dz": 3 }] },
+    { "id": "trench", "name": "검푸른 해구", "label": "03", "danger": "높음", "tier": 3, "x": -47, "z": -78, "reward": 340, "summary": "심해 수호자 1마리 + 포식자 2마리", "hint": "섬 확장과 여러 무장이 필요합니다. 수호자는 섬을 빠르게 침몰시킵니다.", "enemies": [{ "type": "leviathan", "dx": 0, "dz": 0 }, { "type": "crawler", "dx": -6, "dz": 4 }, { "type": "crawler", "dx": 6, "dz": 4 }] }
+  ]
+}
