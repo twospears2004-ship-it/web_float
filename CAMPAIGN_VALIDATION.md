@@ -4,6 +4,8 @@
 
 ## 현재 임무·회로별 전력 표시 (2026-10-11, 소스424c·실행판)
 
+- 장기 목표 계속 요청 후 고정 소스15d7의 실제 시간 검사를 재개했습니다. run-2는 브라우저의 로컬 접근 차단 `net::ERR_NETWORK_ACCESS_DENIED`로 새 게임 관측 전에 실패했고, run-3은 이전 오류를 현재 오류로 판단한 검사기 때문에 중단됐습니다. 두 실패의 원본 보고서·로그를 보존했습니다. 시작 실패 뒤에는 같은 고정 소스/HTML/CSS와 정확히 동일한 완료 기록의 종료 관측만 출처·시각을 붙여 복구하고, 이번 세션의 새 오류/외부 요청은 여전히 즉시 실패로 처리합니다. 복구/저장 비교 **9/9, 112.2156ms**와 검사기 문법 확인이 통과했습니다. run-4는 같은19개 완료와 Frost6의 목표2·자원792·함대3 저장을 정상 이어하기로 복원한 뒤 목표4 이상 진행했습니다. 캐시 저장 시각의0.25초 차이는 기존10초 이내 검증 범위에서 확인하고 임무의 재개 부분은 `timingPartial`로 남깁니다. 현재 세션 오류/외부 요청0이며 과거 접근 차단1건은 삭제하지 않습니다. `artifacts/live-current-instancing-full-resume2.log`, `live-current-instancing-full-resume3.log`, `live-current-instancing-full-resume4.log`, `live-current-instancing-full-20261011/run-2/prior-live-audit.json`, `run-3/prior-live-audit.json`, `run-4/active-resume.json`. 이는 검사기 복구와 일부 실제 진행 증거이며 전체192개·20시간 검증 완료는 아닙니다.
+
 - GitHub 업로드 후 Windows 실행 배치 오류를 수정했습니다. 두 `.cmd`를 ASCII·CRLF로 저장하고 `.gitattributes`에도 CRLF 체크아웃을 지정했습니다. 실제 `cmd.exe`에서 기존 실행 배치의 실패를 격리 재현했고, 수정본의 공백 포함 경로·데스크톱 인수 전달·브라우저 기존 빌드/첫 빌드/빌드 실패/서버 실패의 호출과 종료 코드를 확인했습니다. 실제 Windows PowerShell 진입점의 `-ValidateOnly`는 최신 EXE 경로·SHA-256 검증을 통과했습니다. 파일 검증은 별도 PowerShell 해시 명령을 요구하지 않고 내장 .NET SHA-256을 사용합니다. 게임 실행 파일과 플레이 저장은 변경하지 않았습니다. `artifacts/windows-launcher-check/report.json`.
 
 - 현재28개 소스 해시 `424c502ba73e69cd5de459359e039d97cb741998f8919ed8a1f0126d2643d2fa`. `src/main.js`의 화면 제목과 기지 공략 표시만 바꿨으며, 나머지27개 모듈은 직전15d7과 바이트 단위로 같습니다. `artifacts/power-status-source-proof.json`, `artifacts/power-status-main-display.diff`.

@@ -10,6 +10,7 @@ import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {livePlayer,needsStoryDeparture} from './live-player.mjs';
 import {canonicalSavedValue,harborFleetValue} from './save-comparison.mjs';
+import {findResumeObservation} from './live-resume-observation.mjs';
 const arg=(name,fallback)=>process.argv.find(a=>a.startsWith(`--${name}=`))?.slice(name.length+3)||fallback;
 const project=process.cwd(),output=path.resolve(arg('output','artifacts/live-journey')),port=Number(arg('port','5192')),resuming=process.argv.includes('--resume');let limit=arg('limit','')?Number(arg('limit','')):undefined;
 const relative=path.relative(path.resolve('artifacts'),output);
@@ -23,18 +24,27 @@ else await fs.mkdir(output,{recursive:false});
 const frozen=path.join(output,'frozen-game'),profile=path.join(output,'browser-profile'),url=`http://127.0.0.1:${port}`;
 if(!resuming){await fs.mkdir(frozen);for(const name of ['src','public','index.html'])await fs.cp(path.join(project,name),path.join(frozen,name),{recursive:true});}
 const priorRuns=resuming?(await fs.readdir(output)).map(name=>Number(/^run-(\d+)$/.exec(name)?.[1]||0)):[];
+const archivedObservations=[];
+if(resuming&&!previous.current)for(const index of priorRuns.filter(Boolean).sort((a,b)=>b-a)){
+  const file=path.join(output,`run-${index}`,'prior-live-audit.json');
+  try{archivedObservations.push({file,report:JSON.parse(await fs.readFile(file,'utf8'))});}catch(error){if(error.code!=='ENOENT')throw error;}
+}
+const resumeObservation=resuming?findResumeObservation(previous,archivedObservations):null,resumeCurrent=resumeObservation?.current;
 const runIndex=Math.max(previous?.sessions?.length||Number(!!previous),...priorRuns)+1,controllerFolder=resuming?path.join(output,`run-${runIndex}`):output;
 if(resuming)await fs.mkdir(controllerFolder,{recursive:false});
-for(const name of ['live-journey.mjs','live-player.mjs','save-comparison.mjs'])await fs.copyFile(path.join(project,'scripts',name),path.join(controllerFolder,name));
+for(const name of ['live-journey.mjs','live-player.mjs','save-comparison.mjs','live-resume-observation.mjs'])await fs.copyFile(path.join(project,'scripts',name),path.join(controllerFolder,name));
 const hash=b=>createHash('sha256').update(b).digest('hex'),source=createHash('sha256');
 for(const name of (await fs.readdir(path.join(frozen,'src'))).filter(n=>/\.(js|json)$/.test(n)).sort()){source.update(name);source.update(await fs.readFile(path.join(frozen,'src',name)));}
 const config=path.join(output,'vite.config.mjs');await fs.writeFile(config,`export default ${JSON.stringify({root:frozen,cacheDir:path.join(frozen,'.vite-cache'),server:{host:'127.0.0.1',port,strictPort:true}})};\n`);
 const importFrozen=name=>import(pathToFileURL(path.join(frozen,'src',name)).href);
 const [game,campaign,content,production,fleet,decisions,frontier,walls,save,fortifications]=await Promise.all(['game.js','campaign.js','campaign-content.js','production.js','fleet-content.js','expedition-content.js','frontier-content.js','walls.js','save.js','fortifications.js'].map(importFrozen));
 const itinerary=Array.from({length:content.chapters.length},(_,chapter)=>[...content.missions.filter(m=>m.chapter===chapter).map(item=>({item,kind:'story'})),...['defense','siege','explore'].flatMap(kind=>frontier.frontierOperations.filter(d=>d.chapter===chapter&&d.kind===kind).map(item=>({item,kind})))]).flat().filter(({item})=>!item.endgame).concat(frontier.frontierOperations.filter(item=>item.endgame).map(item=>({item,kind:item.kind})));limit??=itinerary.length;assert(limit<=itinerary.length,'Limit exceeds this frozen game\'s itinerary.');
-const runtime={sourceHash:source.digest('hex'),htmlHash:hash(await fs.readFile(path.join(frozen,'index.html'))),cssHash:hash(await fs.readFile(path.join(frozen,'src','style.css'))),controllerHash:hash(await fs.readFile(path.join(controllerFolder,'live-player.mjs'))),runnerHash:hash(await fs.readFile(path.join(controllerFolder,'live-journey.mjs'))),comparisonHash:hash(await fs.readFile(path.join(controllerFolder,'save-comparison.mjs'))),frozen,profile,url,node:process.version};
+const runtime={sourceHash:source.digest('hex'),htmlHash:hash(await fs.readFile(path.join(frozen,'index.html'))),cssHash:hash(await fs.readFile(path.join(frozen,'src','style.css'))),controllerHash:hash(await fs.readFile(path.join(controllerFolder,'live-player.mjs'))),runnerHash:hash(await fs.readFile(path.join(controllerFolder,'live-journey.mjs'))),comparisonHash:hash(await fs.readFile(path.join(controllerFolder,'save-comparison.mjs'))),observationHash:hash(await fs.readFile(path.join(controllerFolder,'live-resume-observation.mjs'))),frozen,profile,url,node:process.version};
 if(previous)for(const key of ['sourceHash','htmlHash','cssHash'])assert.equal(runtime[key],previous.runtime[key],`Frozen ${key} changed across resume.`);
 const report={kind:'real-time rendered UI journey, isolated frozen development version',date:previous?.date||new Date().toISOString(),startedAt:previous?.startedAt,status:'starting',complete:false,limit,records:[],samples:previous?.samples||[],errors:previous?.errors||[],remoteRequests:previous?.remoteRequests||[],imports:previous?.imports||0,virtualClock:false,gameMutationCalls:false,runtime,sessions:previous?.sessions||[],warning:'Automated actual-time play and read-only rendering diagnostics; not a human Steam-quality/playtime verdict.'};
+// Keep historical failures visible without treating them as new-session errors.
+const errorStart=report.errors.length,requestStart=report.remoteRequests.length;
+const sessionHasErrors=()=>report.errors.length>errorStart||report.remoteRequests.length>requestStart;
 let recoveryFile,activeResume;
 const durableFacilities=fs=>canonicalSavedValue(fs.map(({cooldown,...facility})=>facility));
 function recordFor(g,item,kind,realSeconds){return {id:item.id,kind,realSeconds,gameSeconds:g.campaign.missionSeconds,totalActiveSeconds:g.campaign.totalActiveSeconds,resources:g.resources,hull:g.hull,research:g.campaign.research,tiles:g.tiles.length,facilities:g.facilities.length,army:g.fleet.units.filter(u=>u.hp>0).map(u=>({id:u.id,type:u.type,hp:u.hp,level:u.level})),sourceHash:runtime.sourceHash,controllerHash:runtime.controllerHash,runnerHash:runtime.runnerHash,runIndex};}
@@ -48,7 +58,7 @@ if(previous){
     const file=path.join(output,`${item.id}-harbor.json`),g=save.decodeSave(await fs.readFile(file,'utf8'));
     assert.equal(g.campaign.stage,'harbor');assert.equal(g.phase,'playing');
     (kind==='story'?completed:cleared).push(item.id);assert.deepEqual(g.campaign.completed,completed);assert.deepEqual(g.campaign.frontier?.cleared||[],cleared);
-    const evidence=prior||previous.pendingResult||previous.current;
+    const evidence=prior||previous.pendingResult||resumeCurrent;
     assert.equal(g.resources,evidence.resources);assert.equal(g.campaign.missionSeconds,evidence.gameSeconds??evidence.seconds);
     if(uncommitted)await fs.access(path.join(output,`${item.id}.png`));
     report.records.push(prior?{...prior,runIndex:prior.runIndex||1,controllerHash:prior.controllerHash||previous.runtime.controllerHash,runnerHash:prior.runnerHash||previous.runtime.runnerHash}:{...recordFor(g,item,kind,previous.pendingResult?.realSeconds??null),runIndex:1,controllerHash:previous.runtime.controllerHash,runnerHash:previous.runtime.runnerHash,recoveredAfterComparisonFailure:true,timingUnavailable:!previous.pendingResult});
@@ -63,11 +73,12 @@ const previousElapsed=previous?.realElapsedSeconds||0;
 process.on('SIGINT',()=>{stopRequested=true;});process.on('SIGTERM',()=>{stopRequested=true;});
 async function progress(){
   report.updatedAt=new Date().toISOString();report.realElapsedSeconds=previousElapsed+(Date.now()-started)/1000;
-  if(report.sessions.at(-1)?.runIndex===runIndex)Object.assign(report.sessions.at(-1),{realSeconds:(Date.now()-started)/1000,status:report.status,updatedAt:report.updatedAt,...(report.failure?{failure:report.failure}:{})});
+  if(report.sessions.at(-1)?.runIndex===runIndex)Object.assign(report.sessions.at(-1),{realSeconds:(Date.now()-started)/1000,status:report.status,updatedAt:report.updatedAt,errors:report.errors.slice(errorStart),remoteRequests:report.remoteRequests.slice(requestStart),...(report.failure?{failure:report.failure}:{})});
   report.completed=Object.fromEntries(['story','defense','siege','explore'].map(kind=>[kind,report.records.filter(r=>r.kind===kind).length]));
   report.complete=report.records.length===itinerary.length&&report.status==='complete';report.totalGameActiveSeconds=lastState?.campaign?.totalActiveSeconds??previous?.totalGameActiveSeconds??0;
   report.sortieSeconds=report.records.reduce((n,r)=>n+r.gameSeconds,0)+(lastState&&['mission','operation'].includes(lastState.campaign.stage)&&!report.records.some(r=>r.id===(lastState.operation?.id||lastState.campaign.missionId))?lastState.campaign.missionSeconds:0);
-  report.current=lastState?.campaign?{id:lastState.operation?.id||lastState.campaign.missionId,phase:lastState.phase,paused:lastState.paused,stage:lastState.campaign.stage,objective:lastState.campaign.objectiveIndex,round:lastState.operation?.round,seconds:lastState.campaign.missionSeconds,resources:lastState.resources,hull:lastState.hull,maxHull:lastState.maxHull,ships:lastState.fleet.units.filter(u=>u.hp>0).length}:lastState?{phase:lastState.phase,hasCampaign:false}:null;
+  report.current=lastState?.campaign?{id:lastState.operation?.id||lastState.campaign.missionId,phase:lastState.phase,paused:lastState.paused,stage:lastState.campaign.stage,objective:lastState.campaign.objectiveIndex,round:lastState.operation?.round,seconds:lastState.campaign.missionSeconds,resources:lastState.resources,hull:lastState.hull,maxHull:lastState.maxHull,ships:lastState.fleet.units.filter(u=>u.hp>0).length}:lastState?{phase:lastState.phase,hasCampaign:false}:resumeCurrent||null;
+  report.currentObservation=lastState?{kind:'live',observedAt:report.updatedAt}:resumeObservation?{kind:'prior-terminal',source:resumeObservation.source,observedAt:resumeObservation.observedAt}:null;
   const target=path.join(output,'live-audit.json');await fs.writeFile(`${target}.tmp`,JSON.stringify(report,null,2));await fs.rename(`${target}.tmp`,target);
 }
 async function sample(){
@@ -81,7 +92,7 @@ async function exportSave(name){
   return save.decodeSave(await fs.readFile(file,'utf8'));
 }
 async function finish(item,kind,begin,recovery={}){
-  if(report.errors.length||report.remoteRequests.length)throw new Error('Renderer/request error before saving result.');
+  if(sessionHasErrors())throw new Error('Renderer/request error before saving result.');
   lastState=await player.state();assert(['mission-complete','campaign-complete'].includes(lastState.phase),`${item.id}: ${lastState.phase}`);
   await expect(page.locator('#end-overlay')).toBeVisible();await page.screenshot({path:path.join(output,`${item.id}.png`)});
   // Export is a player command on the campaign panel. The result dialog must be
@@ -94,7 +105,7 @@ async function finish(item,kind,begin,recovery={}){
   for(const u of restored.fleet.units){assert.deepEqual(u.command,{type:'escort'});assert.deepEqual(u.waypoints,[]);assert.equal(u.repath,0);assert.equal(u.cooldown,0);assert(Math.hypot(u.x,u.z)<=fleet.fleetRules.serviceRange);}
   assert.deepEqual(durableFacilities(restored.facilities),durableFacilities(result.facilities),`${item.id}: harbor facilities`);
   assert.equal(kind==='story'?restored.campaign.completed.includes(item.id):restored.campaign.frontier.cleared.includes(item.id),true);
-  if(report.errors.length||report.remoteRequests.length)throw new Error('Renderer/request error while saving result.');
+  if(sessionHasErrors())throw new Error('Renderer/request error while saving result.');
   report.records.push({...report.pendingResult,realSeconds:begin===null?null:(Date.now()-begin)/1000});delete report.pendingResult;
   lastState=await player.state();await progress();console.log(JSON.stringify({finished:item.id,kind,gameSeconds:result.campaign.missionSeconds,realSeconds:begin===null?null:(Date.now()-begin)/1000,resources:result.resources,...recovery}));
 }
@@ -168,7 +179,7 @@ async function combatLoop(item,kind,actions,continuation={}){
     lastState=await player.state();if(lastState.phase!=='playing')break;
     if(lastState.paused)throw new Error(`Unexpected pause: ${item.id}`);
     if(lastState.campaign.missionSeconds>(kind==='story'?2400:3600))throw new Error(`Progress limit exceeded: ${item.id}`);
-    if(report.errors.length||report.remoteRequests.length)throw new Error('Renderer/request error during journey.');
+    if(sessionHasErrors())throw new Error('Renderer/request error during journey.');
     await player.choose(lastState);lastState=await player.state();if(lastState.phase!=='playing')break;await actions(lastState);lastState=await player.state();
     if(lastState.phase==='playing'&&!lastState.campaign.pendingChoice)await player.abilities(lastState);
     if(Date.now()-lastHeartbeat>=60000){lastHeartbeat=Date.now();await sample();}
@@ -193,7 +204,7 @@ try{
       // A last enemy can die while a control click is in flight. Preserve the
       // normal victory saved in this run's own profile through Continue, return
       // to harbor and a public export, rather than replaying a won sortie.
-      const prior=previous.current;assert(next&&prior&&['mission-complete','campaign-complete'].includes(prior.phase),'Unverified completed profile state.');
+      const prior=resumeCurrent;assert(next&&prior&&['mission-complete','campaign-complete'].includes(prior.phase),'Unverified completed profile state.');
       assert.equal(lastState.operation?.id||lastState.campaign.missionId,next.item.id);assert.equal(prior.id,next.item.id);
       save.decodeSave(save.encodeSave(lastState));
       for(const [key,value]of [['resources',prior.resources],['hull',prior.hull]])assert.equal(lastState[key],value,`Saved victory changed ${key}`);
@@ -206,13 +217,13 @@ try{
     }
     lastState=await player.state();
     if(next&&lastState.phase==='playing'&&['mission','operation'].includes(lastState.campaign.stage)){
-      assert.equal(lastState.operation?.id||lastState.campaign.missionId,next.item.id,'Active save is not the next earned sortie.');assert.equal(previous.current?.id,next.item.id);
+      assert.equal(lastState.operation?.id||lastState.campaign.missionId,next.item.id,'Active save is not the next earned sortie.');assert.equal(resumeCurrent?.id,next.item.id);
       assert(lastState.paused,'A terminal active profile must be paused before inspection.');save.decodeSave(save.encodeSave(lastState));
       assert.deepEqual(lastState.campaign.completed,report.records.filter(r=>r.kind==='story').map(r=>r.id));assert.deepEqual(lastState.campaign.frontier?.cleared||[],report.records.filter(r=>r.kind!=='story').map(r=>r.id));
-      const interrupted=previous.terminationConfirmedAt&&previous.failure?.startsWith('Operator interrupted the audit'),rollback=previous.current.seconds-lastState.campaign.missionSeconds;
-      assert(rollback>=-1&&rollback<=(interrupted?60:10),'Cached active save exceeds the verified recovery window.');if(!interrupted)assert.equal(lastState.resources,previous.current.resources,'Cached active costs differ from the terminal observation.');
+      const interrupted=previous.terminationConfirmedAt&&previous.failure?.startsWith('Operator interrupted the audit'),rollback=resumeCurrent.seconds-lastState.campaign.missionSeconds;
+      assert(rollback>=-1&&rollback<=(interrupted?60:10),'Cached active save exceeds the verified recovery window.');if(!interrupted)assert.equal(lastState.resources,resumeCurrent.resources,'Cached active costs differ from the terminal observation.');
       await fs.writeFile(path.join(controllerFolder,'active-resume.json'),save.encodeSave(lastState));
-      activeResume={continuedFromActiveSave:true,timingPartial:true,savedGameSeconds:lastState.campaign.missionSeconds,priorControllerHash:previous.runtime.controllerHash,priorRunnerHash:previous.runtime.runnerHash,...(interrupted?{operatorCacheRollback:{seconds:rollback,resources:lastState.resources-previous.current.resources,hull:lastState.hull-previous.current.hull}}:{})};
+      activeResume={continuedFromActiveSave:true,timingPartial:true,savedGameSeconds:lastState.campaign.missionSeconds,priorControllerHash:previous.runtime.controllerHash,priorRunnerHash:previous.runtime.runnerHash,...(interrupted?{operatorCacheRollback:{seconds:rollback,resources:lastState.resources-resumeCurrent.resources,hull:lastState.hull-resumeCurrent.hull}}:{})};
       Object.assign(report.recovery,{method:'Normal Continue of this terminal run\'s own paused active profile, validated against the earned prefix and terminal observation.',activeId:next.item.id,activeSave:path.join(controllerFolder,'active-resume.json')});
       await page.locator('#resume-button').click();
     }else{
