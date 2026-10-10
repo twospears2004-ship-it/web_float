@@ -1,5 +1,6 @@
 import './style.css';
 import { GameView } from './view.js';
+import {installDialogKeyboard} from './dialog-keyboard.js';
 import { balance, createGame, createCampaign, advance, build, expand, expansionCost, upgrade, repair, collectProduction, demolish, moveFacility, setRoute, startEncounter, setTargeting, weaponStats, enemyStats, upgradeCost, canManage, expansionSlots, keyOf, distance, rulesFor, sitesFor } from './game.js';
 import {productionStats,atShore,productionTypes} from './production.js';
 import {unitTypes,fleetRules} from './fleet-content.js';
@@ -103,6 +104,7 @@ $('fleet-panel').insertAdjacentHTML('afterend',`<div id="atlas-panel" class="tab
 $('defense-control').insertAdjacentHTML('beforeend','<button id="send-survey" hidden>선택 함대를 조사 지점으로</button><button id="extract-exploration" class="primary-button" hidden>기록을 가지고 귀환</button>');
 let game = createGame();
 const ui = { started: false, tool: null, selected: null, moving: null, hover: null, tab: 'build', trackedSite: 'shoal', helpWasPaused: false, experience: 'campaign', modeSwitch: false, pendingMode: null, showLocked: false, board:false,selectedUnits:[],commandMode:false,attackMove:false,fleetFocus:false };
+installDialogKeyboard();
 ui.edge='north';
 const desktop=createDesktopBridge(window.tideholdDesktop,localStorage),desktopRestore=await desktop.restore();
 let saved = loadCampaign();
