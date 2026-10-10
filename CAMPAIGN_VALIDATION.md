@@ -4,6 +4,8 @@
 
 ## 현재 임무·회로별 전력 표시 (2026-10-11, 소스424c·실행판)
 
+- GitHub 업로드 후 Windows 실행 배치 오류를 수정했습니다. 두 `.cmd`를 ASCII·CRLF로 저장하고 `.gitattributes`에도 CRLF 체크아웃을 지정했습니다. 실제 `cmd.exe`에서 기존 실행 배치의 실패를 격리 재현했고, 수정본의 공백 포함 경로·데스크톱 인수 전달·브라우저 기존 빌드/첫 빌드/빌드 실패/서버 실패의 호출과 종료 코드를 확인했습니다. 실제 Windows PowerShell 진입점의 `-ValidateOnly`는 최신 EXE 경로·SHA-256 검증을 통과했습니다. 파일 검증은 별도 PowerShell 해시 명령을 요구하지 않고 내장 .NET SHA-256을 사용합니다. 게임 실행 파일과 플레이 저장은 변경하지 않았습니다. `artifacts/windows-launcher-check/report.json`.
+
 - 현재28개 소스 해시 `424c502ba73e69cd5de459359e039d97cb741998f8919ed8a1f0126d2643d2fa`. `src/main.js`의 화면 제목과 기지 공략 표시만 바꿨으며, 나머지27개 모듈은 직전15d7과 바이트 단위로 같습니다. `artifacts/power-status-source-proof.json`, `artifacts/power-status-main-display.diff`.
 - 좌우 공급 구역은 살아 있는 지휘핵의 공급 동력기 수를 `서 1 · 중앙 2 · 동 1`로 표시합니다. 실제 서부 동력기 파괴 후 `서 0 · 중앙 1 · 동 1`로 바뀌고 정상 저장/재접속 뒤 유지됩니다. 과거 전역 송전 저장은 기존 공급 유지/차단 표시를 사용합니다. 금색/청록 회로와 중앙 공유, 전력0에서 장갑/수리 공급 차단을 안내합니다.
 - 화면의 큰 제목은 실제 이야기/작전 이름을 따르고, 정박지로 돌아오면 기본 제목으로 복원됩니다. 격리된 최신 작업본의 실제 측면 공격·저장·복원·기존 전역 송전·모드 변경·임무 포기 **4/4, 2.2분** 통과. `artifacts/power-status-title-browser.log`; 최초 전력 표시만의3개 검사는 `power-status-browser.log`에 별도로 남습니다.

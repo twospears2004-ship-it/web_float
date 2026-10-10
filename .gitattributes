@@ -1,0 +1,2 @@
+# Windows batch launchers must use CRLF when checked out.
+*.cmd text eol=crlf
