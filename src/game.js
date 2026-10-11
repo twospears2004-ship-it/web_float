@@ -4,6 +4,7 @@ import { campaignRules } from './campaign-content.js';
 import { closestHullPoint, hullDistance, separateFromHull } from './hull.js';
 import {onSailed,salvageBonus} from './production.js';
 import {tickFleet,threatenedUnit} from './fleet.js';
+import {steerEnemy,enemySupportRadius} from './enemy-ai.js';
 import {structureHull,defenseTarget} from './fortifications.js';
 import {structurePosition,validWallSlot,wallEdge} from './walls.js';
 import {afterDefenseTick} from './frontier.js';
@@ -234,15 +235,13 @@ function tick(g, dt, input) {
     const shipTarget=physicalHull && target===g.island;
     let contact=shipTarget?closestHullPoint(g,e):target;
     let d = shipTarget?contact.distance:distance(e,target);
-    if (stats.speed > 0 && d > stats.range - 0.5) {
-      const step = Math.min(stats.speed * dt, d - stats.range + 0.5);
-      e.x += (contact.x - e.x) / d * step; e.z += (contact.z - e.z) / d * step;
-      if(physicalHull)Object.assign(e,separateFromHull(g,e,stats.radius));
+    if (stats.speed > 0) {
+      steerEnemy(g,e,target,stats,dt,physicalHull,rules.worldLimit);
       contact=shipTarget?closestHullPoint(g,e):target;
       d = shipTarget?contact.distance:distance(e,target);
     }
     e.cooldown = Math.max(0, e.cooldown - dt);
-    if(stats.repair) for(const other of g.enemies)if(other!==e&&other.hp>0&&distance(e,other)<17)other.hp=Math.min(other.maxHp,other.hp+stats.repair*dt*(1+(g.campaign.chapter || 0)*0.25));
+    if(stats.repair) for(const other of g.enemies)if(other!==e&&other.hp>0&&!other.captured&&distance(e,other)<enemySupportRadius)other.hp=Math.min(other.maxHp,other.hp+stats.repair*dt*(1+(g.campaign.chapter || 0)*0.25));
     if(stats.spawn && (e.spawnCount || 0)<3) {
       e.spawnTimer-=dt;
       if(e.spawnTimer<=0) {

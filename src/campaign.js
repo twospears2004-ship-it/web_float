@@ -171,13 +171,17 @@ export function researchCost(g, tech) {
   const level=g.campaign.tech[tech.id] || 0;
   return {points:tech.cost+level,materials:(tech.materials || 0)+level*(tech.materialsStep || 0)};
 }
+export function researchStatus(g,tech,charts=atlasSummary(g.campaign).full) {
+  const c=g.campaign,level=c.tech[tech.id]||0,cost=researchCost(g,tech),required=researchChartRequirement(c,tech);
+  const missing=[];if(c.research<cost.points)missing.push(`자료 ${cost.points-c.research} 부족`);if(g.resources<cost.materials)missing.push(`자원 ${cost.materials-g.resources} 부족`);
+  const reason=level>=tech.max?'최대 단계 완료':g.paused?'일시정지를 해제하세요':g.phase!=='playing'||c.stage!=='harbor'?'정박지에서 연구하세요':c.chapter<(tech.unlock||0)?`${chapters[tech.unlock].name}에서 설계도 해금`:charts<required?`완성 해도 ${charts}/${required} · 항로 기록에서 빠진 조사 확인`:missing.join(' · ');
+  return {level,cost,available:!reason,reason};
+}
 export function researchTechnology(g, id) {
   const c = g.campaign, tech = technologies.find(t => t.id === id);
-  if (!c || !tech || c.stage !== 'harbor' || g.paused || g.phase !== 'playing') return false;
-  if(c.chapter<(tech.unlock || 0)){g.message=`${chapters[tech.unlock].name}에서 연구 설계도를 확보하세요.`;return false;}
-  const charts=researchChartRequirement(c,tech);if(atlasSummary(c).full<charts){g.message=`완성한 해도 ${charts}개가 필요합니다. 항로 기록에서 빠진 조사를 확인하세요.`;return false;}
-  const level = c.tech[id] || 0, cost = researchCost(g,tech);
-  if (level >= tech.max || c.research < cost.points || g.resources<cost.materials) { g.message = '연구 자료·시설 자재가 부족하거나 최대 단계입니다.'; return false; }
+  if (!c || !tech) return false;
+  const {level,cost,available,reason}=researchStatus(g,tech);
+  if(!available){g.message=reason;return false;}
   c.research -= cost.points;g.resources-=cost.materials;c.tech[id] = level + 1;
   if (id === 'bulkhead') { g.maxHull += 80; g.hull += 80; }
   g.message = `${tech.name} ${level + 1}단계 연구 완료.`; return true;

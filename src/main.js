@@ -10,12 +10,13 @@ import {wallEdges,wallEdge,wallAt} from './walls.js';
 import {getOperation,defenseContracts,defensePatterns} from './frontier-content.js';
 import {siegeContracts,siegePatterns,basePower} from './siege-content.js';
 import {explorations} from './exploration-content.js';
-import {atlasChart,atlasSummary,atlasHasSurvey,researchChartRequirement} from './atlas.js';
+import {atlasChart,atlasSummary,atlasHasSurvey} from './atlas.js';
 import {atlasMarkup} from './atlas-view.js';
+import {renderResearch} from './research-view.js';
 import {selectExplorationSite,finishExploration,knownSite,canExtract,isExploring} from './exploration.js';
 import {launchDefense,startDefenseWave,retryDefense,availableDefenses,availableSieges,availableExplorations} from './frontier.js';
-import { chapters, missions, getMission, getChapter, technologies, abilityDefinitions, bossTactics, enemyTactics } from './campaign-content.js';
-import { launchMission, returnToHarbor, retryMission, availableMissions, useAbility, repairEscort, resupplyAbilities, researchTechnology, researchCost, powerCapacity, powerUsed, facilityPower, currentFieldDecision, resolveFieldDecision } from './campaign.js';
+import { chapters, missions, getMission, getChapter, abilityDefinitions, bossTactics, enemyTactics } from './campaign-content.js';
+import { launchMission, returnToHarbor, retryMission, availableMissions, useAbility, repairEscort, resupplyAbilities, researchTechnology, powerCapacity, powerUsed, facilityPower, currentFieldDecision, resolveFieldDecision } from './campaign.js';
 import { saveCampaign, loadCampaign, encodeSave, decodeSave, SAVE_KEY } from './save.js';
 import {createDesktopBridge} from './desktop-bridge.js';
 import {createRenderCadence} from './render-cadence.js';
@@ -280,7 +281,7 @@ $('start-defense-wave').addEventListener('click',()=>{
   if(startDefenseWave(game)&&game.operation.kind==='siege'&&game.mode==='destination')setRoute(game,game.catalog[game.operation.round].id);
   update(true);persist();
 });
-$('research-list').addEventListener('click', e => { const id = e.target.closest('[data-research]')?.dataset.research; if (id) { researchTechnology(game, id); update(true); persist(); } });
+$('research-list').addEventListener('click', e => { const button=e.target.closest('[data-research]'),id=button?.dataset.research,focused=document.activeElement===button; if (id) { researchTechnology(game, id); update(true); persist();if(button.disabled&&focused){const buttons=[...$('research-list').children],index=buttons.indexOf(button),next=buttons.slice(index+1).find(b=>!b.disabled)||buttons.slice(0,index).reverse().find(b=>!b.disabled);(next||$('research-points')).focus();} } });
 document.querySelectorAll('[data-ability]').forEach(b => b.addEventListener('click', () => { useAbility(game, b.dataset.ability); update(true); persist(); }));
 let saveSequence=0;
 function persist() {
@@ -573,9 +574,9 @@ function updateCampaign(force) {
   if (force || key !== lastCampaignKey) {
     lastCampaignKey = key; const available = new Set(availableMissions(game).map(m => m.id));
     $('mission-list').innerHTML = chapters.map((ch, i) => `<details class="chapter-list" ${i === c.chapter ? 'open' : ''}><summary><span>${String(i+1).padStart(2,'0')}</span>${ch.name}<small>${c.completed.filter(id => getMission(id).chapter === i).length}/6</small></summary>${missions.filter(m => m.chapter === i).map(m => `<button class="mission-card ${c.completed.includes(m.id) ? 'complete' : ''}" data-mission="${m.id}" ${!available.has(m.id) || c.stage !== 'harbor' || game.paused ? 'disabled' : ''}><span class="mission-type">${{hunt:'사냥',salvage:'회수',defend:'방어',siege:'공격',relay:'복구',boss:'보스'}[m.kind]} ${c.completed.includes(m.id) ? '✓' : ''}</span><strong>${m.name}</strong><small>${m.description}</small><span class="mission-cost">◆ ${c.completed.includes(m.id) ? Math.floor(m.reward*0.4) : m.reward} + 처치 보상 ${c.completed.includes(m.id) ? '· 재탐사' : `· 연구 +${m.research}`}</span></button>`).join('')}</details>`).join('');
-    $('research-points').textContent = `자료 ${c.research}`;
-    $('research-list').innerHTML = technologies.map(t => { const level = c.tech[t.id] || 0,cost=researchCost(game,t),locked=c.chapter<(t.unlock || 0),required=researchChartRequirement(c,t),chartLocked=chartCount<required; return `<button data-research="${t.id}" class="research-card" ${c.stage !== 'harbor' || game.paused || locked || chartLocked || level >= t.max || c.research < cost.points || game.resources<cost.materials ? 'disabled' : ''}><span><strong>${t.name} ${level}/${t.max}</strong><small>${t.description}</small></span><b>${locked ? `${chapters[t.unlock].name} 해금` : level >= t.max ? '완료' : chartLocked?`완성 해도 ${chartCount}/${required}`:`자료 ${cost.points}${cost.materials?` · 자원 ${cost.materials}`:''}`}</b></button>`; }).join('');
   }
+  const researchKey=`${key}:${c.chapter}:${game.phase}:${game.resources}`;
+  if(force||$('research-list').dataset.key!==researchKey){$('research-list').dataset.key=researchKey;$('research-points').textContent=`자료 ${c.research} · 자원 ${game.resources}`;$('research-points').tabIndex=-1;renderResearch($('research-list'),game,chartCount);}
 }
 let refitKey='';
 function updateRefitSummary(){
