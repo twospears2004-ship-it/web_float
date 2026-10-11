@@ -28,6 +28,7 @@ import { saveCampaign, loadCampaign, encodeSave, decodeSave, SAVE_KEY } from './
 import {facilityGrowth} from './facility-growth.js';
 import {defenseWavePlan} from './defense-plans.js';
 import {inspectionContext,inspectedContact} from './combat-inspector.js';
+import {battleContacts,renderBattleContacts} from './combat-contacts-view.js';
 import {createDesktopBridge} from './desktop-bridge.js';
 import {createRenderCadence} from './render-cadence.js';
 import { GameAudio, loadSettings, SETTINGS_KEY } from './audio.js';
@@ -84,6 +85,7 @@ app.innerHTML = `
         <div id="field-repairs" class="utility-row" hidden><button id="field-repair">섬 현장 수리 <small>◆ 35</small></button><button id="escort-repair">호위선 수리 <small>◆ 40</small></button><button id="field-resupply">능력 재보급 <small>◆ 75</small></button></div>
         <p id="field-maintenance-note" class="maintenance-note" tabindex="-1" hidden></p>
         <label id="route-toggle" class="route-toggle" hidden><input id="show-route" type="checkbox" /> 전체 원정 경로 보기</label>
+        <details id="battle-contacts" class="battle-contacts" hidden><summary>현재 적 보기</summary><p>항목을 누르면 적 정보와 시점이 열립니다. F로 함대를 선택한 뒤 정보창의 집중 공격을 누르세요. Shift+집중 공격은 예약합니다.</p><div id="battle-contact-list"></div></details>
         <div id="site-list"></div><div id="enemy-intel" class="enemy-intel" hidden></div>
         <button id="home-button" class="home-button">⌂ 정박지로 귀환</button>
         <p class="voyage-footnote">두 모드의 적 · 자원 · 비용은 같습니다.<br/>다시 시작하면 모든 조건이 초기화됩니다.</p>
@@ -159,6 +161,7 @@ function installGame(next, tab = 'build') {
   game = next; view?.reset(); keys.clear(); lastSiteKey = ''; lastCampaignKey = '';
   Object.assign(ui, { started: true, tool: null, selected: null, moving: null, hover: null, trackedSite: 'shoal' });
   Object.assign(ui,{selectedUnits:[],commandMode:false,attackMove:false,spreadFormation:false,fleetFocus:false,inspectedEnemy:null,inspectionContext:null});
+  $('battle-contacts').open=false;delete $('battle-contacts').dataset.context;
   ui.lastGroup=null;
   $('start-overlay').hidden = true; $('end-overlay').hidden = true; $('pause-overlay').hidden = true; $('help-overlay').hidden = true;
   $('replace-overlay').hidden = true; showTab(tab); update(true); $('pause-button').focus();
@@ -350,6 +353,8 @@ $('fleet-panel').addEventListener('click',e=>{
 });
 function issueOrder(type,point,append=false) {ui.lastGroup=null;if(orderUnits(game,ui.selectedUnits,type,point,append,ui.spreadFormation?'spread':'compact')){ui.attackMove=false;persist();}update(true);}
 function inspectEnemy(id) {ui.inspectedEnemy=id;ui.inspectionContext=inspectionContext(game);update(true);}
+function focusEnemyInfo(enemy){if(view){view.mapFocus={x:Math.max(-109,Math.min(109,enemy.x)),z:Math.max(-109,Math.min(109,enemy.z))};ui.fleetFocus=false;}inspectEnemy(enemy.id);const panel=$('contact-panel');panel.scrollTop=0;panel.scrollIntoView({block:'nearest'});$('close-contact').focus({preventScroll:true});}
+$('battle-contact-list').addEventListener('click',e=>{const button=e.target.closest('[data-battle-contact]');if(!button)return;const target=battleContacts(game).find(c=>c.enemy.id===button.dataset.battleContact)?.enemy;if(target)focusEnemyInfo(target);});
 function focusCombatControl(){($('fleet-toolbar').hidden?$('pause-button'):$('command-toggle')).focus({preventScroll:true});}
 $('contact-support').insertAdjacentHTML('afterend','<details id="contact-power-links" hidden><summary></summary><div id="contact-power-list" class="contact-power-list"></div><small>정보와 시점만 이동합니다. 함대 명령은 유지됩니다.</small></details>');
 $('contact-power-list').addEventListener('click',e=>{
@@ -695,6 +700,7 @@ function updateFirstVoyage(){
   $('first-voyage-action').disabled=game.paused||game.phase!=='playing';
 }
 function updateContact() {
+  const lostRosterFocus=renderBattleContacts($('battle-contacts'),$('battle-contact-list'),game);if(lostRosterFocus)($('battle-contacts').hidden?$('show-voyage'):$('battle-contacts').querySelector('summary')).focus({preventScroll:true});
   const panel=$('contact-panel'),contact=inspectedContact(game,ui),focused=panel.contains(document.activeElement);
   panel.hidden=!contact;
   const lostLinkFocus=renderCombatLinks($('contact-power-links'),$('contact-power-list'),contact);
