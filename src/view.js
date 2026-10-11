@@ -167,9 +167,9 @@ export class GameView {
       const mesh = new THREE.Mesh(new THREE.SphereGeometry(mortar ? 0.27 : 0.14, 6, 5), material(event.type === 'enemyShot' ? 0xee987b : 0xffdf8d, { emissive: event.type === 'enemyShot' ? 0xad3820 : 0xc68b31, emissiveIntensity: 0.7 }));
       this.scene.add(mesh); this.effects.push({ mesh, event, age: 0, life: mortar ? 0.55 : 0.24, kind: 'projectile' });
     } else if (event.type === 'pulse') {
-      const mesh = new THREE.Mesh(new THREE.RingGeometry(7.6,8,48), new THREE.MeshBasicMaterial({color:0xb5dce0,transparent:true,opacity:0.8,side:THREE.DoubleSide,depthWrite:false}));
+      const mesh = new THREE.Mesh(new THREE.RingGeometry(0.95,1,48), new THREE.MeshBasicMaterial({color:0xb5dce0,transparent:true,opacity:0.8,side:THREE.DoubleSide,depthWrite:false}));
       mesh.rotation.x=-Math.PI/2; mesh.position.set(event.x,-0.9,event.z); mesh.userData.ownedMaterial=true;
-      this.scene.add(mesh); this.effects.push({mesh,age:0,life:0.65,kind:'burst'});
+      this.scene.add(mesh); this.effects.push({mesh,age:0,life:0.65,kind:'pulse',radius:event.radius||24});
     } else if (['hit', 'kill', 'build'].includes(event.type)) {
       const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(event.type === 'kill' ? 1.5 : 0.6, 0), new THREE.MeshBasicMaterial({ color: event.type === 'kill' ? 0xffc979 : event.type === 'build' ? 0xd5eebd : 0xf8bc92, transparent: true, opacity: 0.8, wireframe: event.type === 'build' }));
       mesh.position.set(event.x, 0.9, event.z); mesh.userData.ownedMaterial = true;
@@ -322,7 +322,7 @@ export class GameView {
       effect.age += dt; const t = Math.min(1, effect.age / effect.life);
       if (effect.kind === 'projectile') {
         const e = effect.event; effect.mesh.position.set(e.x + (e.tx - e.x) * t, 1.6 + Math.sin(t * Math.PI) * (e.weapon === 'mortar' ? 7 : 0.3), e.z + (e.tz - e.z) * t);
-      } else { effect.mesh.scale.setScalar(1 + t * 2.5); effect.mesh.material.opacity = 0.8 * (1 - t); effect.mesh.rotation.y += dt * 3; }
+      } else { effect.mesh.scale.setScalar(effect.kind==='pulse'?effect.radius*(0.12+0.88*t):1 + t * 2.5); effect.mesh.material.opacity = 0.8 * (1 - t); if(effect.kind!=='pulse')effect.mesh.rotation.y += dt * 3; }
     }
     this.effects = this.effects.filter(e => { if (e.age >= e.life) { this.release(e.mesh); return false; } return true; });
     if (this.needsSnap) { this.target.set(g.island.x,0,g.island.z); this.needsSnap=false; }

@@ -8,7 +8,7 @@ import {createHash} from 'node:crypto';
 import path from 'node:path';
 import {canonicalSavedValue} from './save-comparison.mjs';
 import {createCampaign,advance,build,upgrade,expand,expansionSlots,repair,demolish,moveFacility,setRoute,setTargeting,upgradeCost,rulesFor,collectProduction,facilityPosition} from '../src/game.js';
-import {launchMission,returnToHarbor,researchTechnology,researchCost,useAbility,repairEscort,resupplyAbilities,currentFieldDecision,resolveFieldDecision,powerUsed,powerCapacity,facilityPower} from '../src/campaign.js';
+import {launchMission,returnToHarbor,researchTechnology,researchCost,useAbility,abilityStats,repairEscort,resupplyAbilities,currentFieldDecision,resolveFieldDecision,powerUsed,powerCapacity,facilityPower} from '../src/campaign.js';
 import {missions,technologies} from '../src/campaign-content.js';
 import {fieldDecisions} from '../src/expedition-content.js';
 import {frontierOperations} from '../src/frontier-content.js';
@@ -28,6 +28,7 @@ const supportGuard=process.argv.includes('--support-guard');
 const fleetRefits=process.argv.includes('--fleet-refits');
 const fleetPriorities=process.argv.includes('--fleet-priorities');
 const fleetWards=process.argv.includes('--fleet-wards');
+const fieldControl=process.argv.includes('--field-control');
 const requestedOutput=process.argv.find(a=>a.startsWith('--output='))?.slice(9) || 'artifacts',outputPath=path.resolve(requestedOutput),relativeOutput=path.relative(path.resolve('artifacts'),outputPath);
 if(relativeOutput==='..'||relativeOutput.startsWith(`..${path.sep}`)||path.isAbsolute(relativeOutput))throw new Error('Journey output must stay inside artifacts.');
 const output=path.relative(process.cwd(),outputPath).split(path.sep).join('/');
@@ -36,6 +37,7 @@ const report={kind:'fresh continuous story and frontier model',date:new Date().t
 report.supportGuard=supportGuard;report.fleetRefits=fleetRefits;report.outlays={fleetProduction:0,fleetUpgrade:0,fleetRepair:0,structureRepair:0,islandRepair:0,resupply:0,fleetRefit:0};
 report.fleetPriorities=fleetPriorities;report.fleetPriorityChanges=0;
 report.fleetWards=fleetWards;report.wardProduction=0;
+if(fieldControl)report.fieldControl={research:[],materials:0,points:0};
 await fs.mkdir(`${output}/journey-fixtures`,{recursive:true});
 const itinerary=Array.from({length:12},(_,chapter)=>[
   ...missions.filter(m=>m.chapter===chapter).map(item=>({item,kind:'story'})),
@@ -105,10 +107,21 @@ function spend(category,action){const before=g.resources,result=action();if(resu
 function prepareColony(){
   paidRefit();let researched=true;
   while(researched){researched=false;for(const id of ['reactor','ballistics','bulkhead','logistics','navigation','cultivation','distributed','precision','cartography']){const tech=technologies.find(t=>t.id===id);if(g.campaign.chapter>=(tech.unlock||0)&&(!tech.materials||g.resources>=researchCost(g,tech).materials+150)&&researchTechnology(g,id))researched=true;}}
+  if(fieldControl){const tech=technologies.find(t=>t.id==='cryodynamics');let cost=researchCost(g,tech);while(g.resources>=cost.materials+150&&researchTechnology(g,tech.id)){report.fieldControl.materials+=cost.materials;report.fieldControl.points+=cost.points;report.fieldControl.research.push({level:g.campaign.tech.cryodynamics,chapter:g.campaign.chapter,afterRecords:report.records.length,materials:cost.materials,points:cost.points});cost=researchCost(g,tech);}}
   if(g.campaign.chapter>=2&&!g.facilities.some(f=>f.type==='rail')&&g.resources>300){const old=g.facilities.find(f=>f.type==='cannon');if(old&&powerUsed(g)-facilityPower(old)+3<=powerCapacity(g)){const{x,z}=old;demolish(g,old.id);build(g,'rail',x,z);}}
-  addFacility('mortar',g.campaign.chapter>=2?2:1);
+  addFacility('mortar',fieldControl&&g.campaign.tech.cryodynamics?1:g.campaign.chapter>=2?2:1);
   for(const type of ['fishery','crane','laboratory','shield','farm','workshop'])addFacility(type);
+  if(fieldControl&&g.campaign.tech.cryodynamics){
+    // A normal paid loadout choice trades the weaker second mortar for area
+    // control when reactor capacity is full; no power or free weapon injection.
+    if(!g.facilities.some(f=>f.type==='frost')&&powerUsed(g)+2>powerCapacity(g)){
+      const mortars=g.facilities.filter(f=>f.type==='mortar').sort((a,b)=>a.level-b.level||a.id-b.id);
+      if(mortars.length>1)demolish(g,mortars[0].id);
+    }
+    addFacility('frost');
+  }
   const targets={cannon:2,mortar:Math.min(8,2+g.campaign.chapter),rail:6,shield:(g.campaign.tech.distributed||0)>=2?4:2,workshop:2,fishery:2,crane:3,farm:2,laboratory:(g.campaign.tech.distributed||0)>=3&&g.campaign.chapter>=9?7:g.campaign.chapter>=3?4:2};
+  if(fieldControl)targets.frost=2+2*(g.campaign.tech.cryodynamics||0);
   let improved=true;while(improved){improved=false;for(const f of g.facilities){if(f.level<Math.min(targets[f.type]||f.level,rulesFor(g).maxLevel)&&g.resources>=upgradeCost(f,g)+200&&upgrade(g,f.id))improved=true;setTargeting(g,f.id,f.type==='rail'?'armored':'support');}}
   while(g.resources>700&&g.tiles.length<49){const slot=expansionSlots(g).sort((a,b)=>Math.abs(a.x)+Math.abs(a.z)-Math.abs(b.x)-Math.abs(b.z))[0];if(!slot||!expand(g,slot.x,slot.z))break;}
   spreadWeapons();
@@ -157,7 +170,7 @@ function choose(){
 function abilities(){
   if(g.hull<g.maxHull*0.8||(g.campaign.allyPosition&&g.campaign.allyHull<g.campaign.allyMaxHull*0.8))useAbility(g,'mend');
   if(g.combat||g.enemies.some(e=>e.windup))useAbility(g,'barrier');
-  if(g.combat&&g.enemies.some(e=>e.hp>0&&!e.captured&&Math.hypot(e.x-g.island.x,e.z-g.island.z)<=24))useAbility(g,'pulse');
+  if(g.combat&&g.enemies.some(e=>e.hp>0&&!e.captured&&Math.hypot(e.x-g.island.x,e.z-g.island.z)<=(fieldControl?abilityStats(g,'pulse').range:24)))useAbility(g,'pulse');
   if(g.campaign.hazards.some(h=>h.remaining<1.5))useAbility(g,'brace');
 }
 function recall(){

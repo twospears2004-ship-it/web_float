@@ -1,5 +1,6 @@
 import {technologies} from './campaign-content.js';
 import {researchStatus} from './campaign.js';
+import {coolingStats} from './field-control.js';
 
 export function researchEffect(id,level) {
   switch(id){
@@ -12,6 +13,7 @@ export function researchEffect(id,level) {
     case 'cultivation':return `어획·작물 생산량 +${level*20}%`;
     case 'precision':return `크레인 회수율 +${level*10}%p · 범위 +${level*3}m (회수율 상한 80%)`;
     case 'cartography':return `연구소 표본 +${level} · 어획·작물 생산량 +${level*10}%`;
+    case 'cryodynamics':{const control=coolingStats(level);return `냉각 폭발 ${control.frostSplash}m · 둔화 ${Math.round((1-control.frostSlow)*100)}% · 파동 ${control.pulseRange}m`;}
     default:return '';
   }
 }

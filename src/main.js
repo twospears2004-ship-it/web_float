@@ -22,7 +22,7 @@ import {renderResearch} from './research-view.js';
 import {selectExplorationSite,finishExploration,knownSite,canExtract,isExploring} from './exploration.js';
 import {launchDefense,startDefenseWave,retryDefense,availableDefenses,availableSieges,availableExplorations} from './frontier.js';
 import { chapters, missions, getMission, getChapter, abilityDefinitions, bossTactics, enemyTactics } from './campaign-content.js';
-import { launchMission, returnToHarbor, retryMission, availableMissions, useAbility, repairEscort, resupplyAbilities, researchTechnology, powerCapacity, powerUsed, facilityPower, currentFieldDecision, resolveFieldDecision } from './campaign.js';
+import { launchMission, returnToHarbor, retryMission, availableMissions, useAbility, abilityDescription, repairEscort, resupplyAbilities, researchTechnology, powerCapacity, powerUsed, facilityPower, currentFieldDecision, resolveFieldDecision } from './campaign.js';
 import { saveCampaign, loadCampaign, encodeSave, decodeSave, SAVE_KEY } from './save.js';
 import {facilityGrowth} from './facility-growth.js';
 import {defenseWavePlan} from './defense-plans.js';
@@ -549,7 +549,7 @@ function updateDefense(force) {
     const tactical=op.layoutVersion===2?`<p class="board-help">중계기 조사 → 연결 수비대 피해 -20% · 봉쇄 포대 조사 → 연결 모체 증원 차단. 지도 연결선의 금색은 교란, 청록색은 증원 차단입니다.</p><p class="board-help" data-exploration-effects>현재 연결 효과: ${effects||'없음'}</p><p class="board-help">현재 수비: ${site.danger} · ${site.summary}</p><p class="board-help">${site.hint}</p>`:'';
     const intelKey=`${op.id}:${op.round}:${op.layoutVersion}:${effects}`;
     if(force||$('enemy-intel').dataset.key!==intelKey){$('enemy-intel').dataset.key=intelKey;$('enemy-intel').innerHTML=`<h3>미지 항로 탐험</h3><p class="board-help">${def.description}</p>${tactical}<p class="board-help">미발견 신호는 지도에 나타나지 않습니다. 함대를 나누어 정찰하세요. 수비대 격파 후 함선6m 또는 섬 물가4m 안에서2초 조사합니다. 조사 사이에 시설·함대 정비와 수확이 가능합니다.</p>`;}
-    document.querySelectorAll('[data-ability]').forEach(b=>{const id=b.dataset.ability;b.disabled=!!c.pendingChoice||game.paused||c.abilityCooldowns[id]>0||(id!=='brace'&&c.abilityCharges[id]<=0)||id==='brace';});return;
+    document.querySelectorAll('[data-ability]').forEach(b=>{const id=b.dataset.ability;b.title=abilityDescription(game,id);b.disabled=!!c.pendingChoice||game.paused||c.abilityCooldowns[id]>0||(id!=='brace'&&c.abilityCharges[id]<=0)||id==='brace';});return;
   }
   const siege=def.kind==='siege',cores=game.enemies.filter(e=>e.type==='baseCore'&&e.hp>0&&!e.captured),generators=game.enemies.filter(e=>e.type==='generator'&&e.hp>0&&!e.captured);
   const splitSupply=siege&&game.enemies.some(e=>e.type==='baseCore'&&e.powerBus!==undefined);
@@ -562,7 +562,7 @@ function updateDefense(force) {
   $('ability-bar').hidden=c.stage!=='operation';$('restart-button').textContent=siege?'기지 공략 재시작':'방어 재시작';$('route-toggle').hidden=true;
   $('sea-state').textContent=game.paused?'일시정지':siege?op.waiting?'거점 확보 · 함대 정비':'기지 공략 · 동력망과 지휘핵':'기지 방어 · '+(op.waiting?'공세 사이 정비':'공세 진행');
   if(siege){$('field-repairs').hidden=c.stage!=='operation';$('field-resupply').hidden=false;$('enemy-intel').hidden=c.stage!=='operation';$('enemy-intel').innerHTML=`<h3>기지 공략</h3><p class="board-help">${def.description}</p><p class="board-help">동력기를 끊으면 포탑 화력·지휘핵 장갑과 수리가 약해집니다. 모든 지휘핵 파괴 시 확보하며 남은 수비대는 항복합니다. 보급 창고는 먼저 파괴해야 자원을 회수합니다.</p>${op.siegeVersion===2?`<p class="board-help" data-raider-intel>${op.waiting?'각 새 도크의 측면 추적자 2기':`남은 측면 추적자 ${game.enemies.filter(e=>e.type==='raider'&&e.hp>0&&!e.captured).length}기`}: 24m 안의 정비정·방호정을 노립니다. 지원선을 전투선 뒤에 두고 빠른 함선·냉각탑으로 차단하세요. 적 클릭으로 현재 추적 대상을 확인합니다.</p>`:''}${splitSupply?'<p class="board-help">서부 회로는 금색, 동부 회로는 청록색입니다. 중앙 지휘핵은 두 회로를 공유합니다. 핵 전력 숫자는 공급 중인 동력기 수이며, 0이면 장갑과 수리 공급이 끊깁니다.</p>':''}`;}
-  document.querySelectorAll('[data-ability]').forEach(b=>{const id=b.dataset.ability;b.disabled=c.stage!=='operation'||game.paused||c.abilityCooldowns[id]>0||(id!=='brace'&&c.abilityCharges[id]<=0)||id==='brace';});
+  document.querySelectorAll('[data-ability]').forEach(b=>{const id=b.dataset.ability;b.title=abilityDescription(game,id);b.disabled=c.stage!=='operation'||game.paused||c.abilityCooldowns[id]>0||(id!=='brace'&&c.abilityCharges[id]<=0)||id==='brace';});
 }
 function updateAtlas(force=false){
   const c=game.campaign;document.querySelector('[data-tab="atlas"]').hidden=!c;if(!c)return;
@@ -636,6 +636,7 @@ function updateCampaign(force) {
     $('field-choice').innerHTML=decision?`<span class="eyebrow">FIELD DECISION</span><h3>${decision.title}</h3><p>${decision.text}</p>${decision.options.map(o=>{const recorded=isExploring(game)&&o.research&&atlasHasSurvey(c,game.operation.id,game.catalog[c.objectiveIndex].id),detail=recorded?'이미 보관한 조사 자료 · 다른 회수품을 선택하세요.':isExploring(game)&&o.research?`새 조사 자료를 귀환 시 보관 · 연구 +${o.research} · 자원 ${o.cost || 0} 소모`:o.detail;return `<button data-field-choice="${o.id}" ${recorded||game.paused||game.resources<(o.cost || 0)?'disabled':''}><strong>${o.name}</strong><small>${detail}</small></button>`;}).join('')}`:'';
   }
   for (const [id, def] of Object.entries(abilityDefinitions)) {
+    document.querySelector(`[data-ability="${id}"]`).title=abilityDescription(game,id);
     const seconds = Math.ceil(c.abilityCooldowns[id] || 0), charges=c.abilityCharges?.[id]; document.querySelector(`[data-cooldown="${id}"]`).textContent = `${seconds?`${seconds}초`:'준비'}${charges===undefined?'':` · ${charges}회`}`;
     document.querySelector(`[data-ability="${id}"]`).disabled = !!seconds || charges===0 || !!c.pendingChoice || c.stage !== 'mission' || game.paused || game.phase !== 'playing' || (id==='brace'&&!c.hazards.length) || (id === 'mend' && game.hull >= game.maxHull && (!c.allyPosition || c.allyHull>=c.allyMaxHull));
   }
@@ -854,7 +855,7 @@ function frame(now) {
 }
 update(true); requestAnimationFrame(frame);
 // Read-only observability for browser tests; no state injection or instant wins.
-if (import.meta.env.DEV) window.__TIDEHOLD__ = Object.freeze({ snapshot: () => structuredClone(game), projectTile: (x, z) => view.projectTile(x, z),projectWorld:p=>view.projectWorld(p),selection:()=>({units:[...ui.selectedUnits],commandMode:ui.commandMode,focus:ui.fleetFocus}), rendererInfo: () => ({ frames: view.renderer.info.render.frame, calls: view.renderer.info.render.calls, triangles: view.renderer.info.render.triangles, geometries: view.renderer.info.memory.geometries, textures: view.renderer.info.memory.textures, enemyMeshes:view.enemies.size, enemyBars:view.bars.size,unitMeshes:view.units.size,commandMarkers:view.commandMarkers.children.length,powerLinks:view.powerLinks.visible?view.powerLinks.geometry.drawRange.count/2:0, protectionRings:[...view.units.entries()].filter(([,m])=>m.userData.protection).map(([id,m])=>({id,visible:m.userData.protection.visible,radius:m.userData.protection.scale.x})),bossVariants:[...view.enemies.values()].filter(m=>m.userData.boss).map(m=>m.userData.boss.variant) }) });
+if (import.meta.env.DEV) window.__TIDEHOLD__ = Object.freeze({ snapshot: () => structuredClone(game), projectTile: (x, z) => view.projectTile(x, z),projectWorld:p=>view.projectWorld(p),selection:()=>({units:[...ui.selectedUnits],commandMode:ui.commandMode,focus:ui.fleetFocus}), rendererInfo: () => ({ frames: view.renderer.info.render.frame, calls: view.renderer.info.render.calls, triangles: view.renderer.info.render.triangles, geometries: view.renderer.info.memory.geometries, textures: view.renderer.info.memory.textures, enemyMeshes:view.enemies.size, enemyBars:view.bars.size,unitMeshes:view.units.size,commandMarkers:view.commandMarkers.children.length,controlBursts:view.effects.filter(e=>e.kind==='pulse').map(e=>({radius:e.radius,drawnRadius:e.mesh.scale.x})),powerLinks:view.powerLinks.visible?view.powerLinks.geometry.drawRange.count/2:0, protectionRings:[...view.units.entries()].filter(([,m])=>m.userData.protection).map(([id,m])=>({id,visible:m.userData.protection.visible,radius:m.userData.protection.scale.x})),bossVariants:[...view.enemies.values()].filter(m=>m.userData.boss).map(m=>m.userData.boss.variant) }) });
 
 // Keep Tab within the active dialog. Escape follows the documented game controls.
 document.addEventListener('keydown', e => {

@@ -6,9 +6,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
-const baseline=process.argv.includes('--baseline'),raider=process.argv.includes('--raider'),fleetWard=process.argv.includes('--fleet-ward')||raider,cycles=baseline?2:12;
+const fieldControl=process.argv.includes('--field-control'),baseline=process.argv.includes('--baseline'),raider=process.argv.includes('--raider')||fieldControl,fleetWard=process.argv.includes('--fleet-ward')||raider,cycles=baseline?2:12;
 let army=fleetWard?17:19;
-const port=5189,url=`http://127.0.0.1:${port}`,input=raider?'tests/fixtures/endgame-earned-coral-network-result.json':'artifacts/journey-wall-current/journey-final.json';
+const port=5189,url=`http://127.0.0.1:${port}`,input=fieldControl?'artifacts/field-control-harbor-earned.json':raider?'tests/fixtures/endgame-earned-coral-network-result.json':'artifacts/journey-wall-current/journey-final.json';
 const source=createHash('sha256');for(const name of (await fs.readdir('src')).filter(n=>/\.(js|json)$/.test(n)).sort()){source.update(name);source.update(await fs.readFile(`src/${name}`));}const sourceHash=source.digest('hex');
 const server=spawn(process.execPath,[path.resolve('node_modules/vite/bin/vite.js'),'--config',path.resolve('scripts/vite-test.config.mjs'),'--host','127.0.0.1','--port',String(port),'--strictPort'],{cwd:process.cwd(),env:{...process.env,TIDEHOLD_TEST_PORT:String(port)},stdio:['ignore','pipe','pipe']});
 let terminal='',serverExited=false,browser;
@@ -20,7 +20,7 @@ try{
   const page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[],remoteRequests=[],samples=[],started=Date.now();
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});page.on('request',r=>{if(!r.url().startsWith(url)&&!r.url().startsWith('data:')&&!r.url().startsWith('blob:'))remoteRequests.push(r.url());});
   const state=()=>page.evaluate(()=>window.__TIDEHOLD__.snapshot()),render=()=>page.evaluate(()=>({...window.__TIDEHOLD__.rendererInfo(),sampledAt:performance.now()}));
-  await page.goto(url);await page.locator('[data-start="destination"]').click();await page.locator('#save-file').setInputFiles(input);await page.locator(raider?'#retry-button':'#resume-button').click();
+  await page.goto(url);await page.locator('[data-start="destination"]').click();await page.locator('#save-file').setInputFiles(input);await page.locator(raider&&!fieldControl?'#retry-button':'#resume-button').click();
   await page.locator('#settings-button').click();await page.locator('#effects-volume').fill('0');await page.locator('#music-volume').fill('0');await page.locator('#graphics-quality').selectOption('standard');await page.locator('#close-settings').click();
   const initial=await state(),yard=initial.facilities.find(f=>f.type==='shipyard');assert.equal(initial.facilities.length,53);assert.equal(initial.campaign.completed.length,72);
   await page.locator('[data-tab="build"]').click();await page.locator('#board-toggle').click();
@@ -31,14 +31,16 @@ try{
   while((await state()).facilities.find(f=>f.id===yard.id).level<9)await page.locator('[data-action="upgrade"]').click();
   await page.locator('[data-tab="fleet"]').click();if(fleetWard)await page.locator('[data-recruit="ward"]').click();while(await page.locator('[data-recruit="skiff"]').isEnabled())await page.locator('[data-recruit="skiff"]').click();
   const prepared=await state();if(raider)army=prepared.fleet.units.filter(u=>u.hp>0).length;assert.equal(prepared.fleet.units.filter(u=>u.hp>0).length,army);assert.ok(prepared.resources<initial.resources);assert.equal(prepared.facilities.find(f=>f.id===yard.id).level,9);const ward=prepared.fleet.units.find(u=>u.type==='ward');if(fleetWard)assert(ward);
+  if(fieldControl){assert.equal(prepared.campaign.tech.cryodynamics,3);assert(prepared.facilities.some(f=>f.type==='frost'));}
   const kinds=['defense','siege','explore'];
   async function operation(kind,seconds){
     await page.locator('[data-tab="campaign"]').click();const prefix=kind==='explore'?'explore':kind,id=raider&&kind==='siege'?'siege-coral-5':`${prefix}-heart-${kind==='explore'?2:3}`;await page.locator(`[data-${prefix}="${id}"]`).click();
     assert.equal((await state()).operation.kind,kind);await page.keyboard.press('f');
     if(kind==='explore')await page.locator('[data-site="explore-node-0"]').click();else await page.locator('#start-defense-wave').click();
+    let burst;if(fieldControl){await expect(page.locator('[data-ability="pulse"]')).toHaveAttribute('title',/실제 범위 30m/);await page.locator('[data-ability="pulse"]').click();await page.waitForTimeout(100);burst=(await render()).controlBursts;assert.equal(burst.length,1);assert.equal(burst[0].radius,30);assert(burst[0].drawnRadius<=30);}
     await page.waitForTimeout(seconds*1000);const inBattle=await render(),hunters=(await state()).enemies.filter(e=>e.type==='raider').length;if(raider&&kind==='siege')assert.equal(hunters,2);
     await page.locator('#home-button').click();await page.locator('#confirm-return').click();assert.equal((await state()).campaign.stage,'harbor');if(fleetWard){await page.locator('[data-tab="fleet"]').click();await page.locator(`[data-unit-select="${ward.id}"]`).click();}await page.waitForTimeout(1000);
-    samples.push({kind,id,hunters,inBattle,returned:await render(),resources:(await state()).resources});
+    samples.push({kind,id,hunters,...(fieldControl?{burst}:{}),inBattle,returned:await render(),resources:(await state()).resources});
   }
   // Warm all terrain, marker and unit variants before comparing like scenes.
   for(const kind of kinds)await operation(kind,2);
@@ -56,7 +58,7 @@ try{
   }
   await cdp.send('HeapProfiler.collectGarbage');const heapAfter=(await metric()).JSHeapUsedSize,final=await state();
   const frameSample=await page.evaluate(async()=>{const stamps=[];await new Promise(resolve=>{const start=performance.now(),tick=t=>{stamps.push(t);if(t-start>=5000)resolve();else requestAnimationFrame(tick);};requestAnimationFrame(tick);});const gaps=stamps.slice(1).map((t,i)=>t-stamps[i]).sort((a,b)=>a-b),gl=document.querySelector('#scene canvas').getContext('webgl2'),debug=gl.getExtension('WEBGL_debug_renderer_info');return {rafFPS:(stamps.length-1)*1000/(stamps.at(-1)-stamps[0]),p95Ms:gaps[Math.floor(gaps.length*.95)],gpu:debug?gl.getParameter(debug.UNMASKED_RENDERER_WEBGL):'unavailable'};});
-  const report={date:new Date().toISOString(),sourceHash,baseline,fleetWard,raider,kind:'real-time isolated development rendering lifecycle; public UI and read-only diagnostics, not a 20-hour test',browser:browser.version(),input,realSeconds:(Date.now()-started)/1000,paidPreparation:{resourcesBefore:initial.resources,resourcesAfter:prepared.resources,replacedSupport:['crane','workshop'],paidMines:2,yardLevel:9,army,facilities:53},warmed,paused,cycles,samples,heap:{before:heapBefore,after:heapAfter,growthBytes:heapAfter-heapBefore,diagnosticGC:true},frameSample,finalResources:final.resources,errors,remoteRequests};
-  const name=raider?'render-lifecycle-raider':fleetWard?'render-lifecycle-ward':baseline?'render-lifecycle-baseline':'render-lifecycle-current';await fs.writeFile(`artifacts/${name}.json`,JSON.stringify(report,null,2));await page.screenshot({path:`artifacts/${name}.png`});console.log(JSON.stringify({...report,samples:undefined}));
+  const report={date:new Date().toISOString(),sourceHash,baseline,fleetWard,raider,fieldControl,kind:'real-time isolated development rendering lifecycle; public UI and read-only diagnostics, not a 20-hour test',browser:browser.version(),input,realSeconds:(Date.now()-started)/1000,paidPreparation:{resourcesBefore:initial.resources,resourcesAfter:prepared.resources,replacedSupport:['crane','workshop'],paidMines:2,yardLevel:9,army,facilities:53},warmed,paused,cycles,samples,heap:{before:heapBefore,after:heapAfter,growthBytes:heapAfter-heapBefore,diagnosticGC:true},frameSample,finalResources:final.resources,errors,remoteRequests};
+  const name=fieldControl?'render-lifecycle-field-control':raider?'render-lifecycle-raider':fleetWard?'render-lifecycle-ward':baseline?'render-lifecycle-baseline':'render-lifecycle-current';await fs.writeFile(`artifacts/${name}.json`,JSON.stringify(report,null,2));await page.screenshot({path:`artifacts/${name}.png`});console.log(JSON.stringify({...report,samples:undefined}));
   assert.equal(errors.length,0);assert.equal(remoteRequests.length,0);assert.ok(heapAfter-heapBefore<8*1024*1024,'Retained heap grew more than 8 MiB');assert.equal(final.resources,prepared.resources);if(!baseline)assert.ok(paused.drawsPerSecond<=18,'Paused game still renders at display rate');
 }finally{if(browser)await browser.close();if(!serverExited)server.kill();}

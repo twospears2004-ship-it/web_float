@@ -1,6 +1,7 @@
 // Pure game state. Render meshes never participate in damage or economy.
 import balance from './balance.json' with { type: 'json' };
 import { campaignRules } from './campaign-content.js';
+import {coolingStats} from './field-control.js';
 import { closestHullPoint, hullDistance, separateFromHull } from './hull.js';
 import {onSailed,salvageBonus} from './production.js';
 import {tickFleet,threatenedUnit} from './fleet.js';
@@ -39,7 +40,9 @@ export function createCampaign(mode = 'direct') { return initializeCampaign(crea
 const emit = (g, event) => { g.events.push(event); if (g.events.length > 180) g.events.shift(); };
 export function weaponStats(f, g) {
   const rules = rulesFor(g), w = rules.weapons[f.type] || campaignRules.weapons[f.type];
-  return { ...w, damage: w.damage * (1 + (f.level - 1) * rules.upgradeDamageScale) * (g?.campaign ? campaignDamageMultiplier(g, f) : 1), range: ((w.range>0?w.range + (f.level - 1) * rules.upgradeRangePerLevel:0)+(f.type==='crane'?(g?.campaign?.tech.precision || 0)*3:0)) * (w.damage>0&&g?.campaign?.darknessSeconds>0?0.7:1) };
+  const stats={ ...w, damage: w.damage * (1 + (f.level - 1) * rules.upgradeDamageScale) * (g?.campaign ? campaignDamageMultiplier(g, f) : 1), range: ((w.range>0?w.range + (f.level - 1) * rules.upgradeRangePerLevel:0)+(f.type==='crane'?(g?.campaign?.tech.precision || 0)*3:0)) * (w.damage>0&&g?.campaign?.darknessSeconds>0?0.7:1) };
+  if(f.type==='frost'&&g?.campaign?.tech.cryodynamics){const control=coolingStats(g.campaign.tech.cryodynamics);stats.splash=control.frostSplash;stats.slow=control.frostSlow;}
+  return stats;
 }
 export const facilityPosition=structurePosition;
 export function upgradeCost(f, g) {

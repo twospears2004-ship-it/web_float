@@ -96,6 +96,8 @@ export function validateCampaign(g) {
   validateAtlas(c);
   const chartLevel=c.tech?.cartography||0;
   check(!chartLevel||atlasSummary(c).full>=(chartLevel===1?1:4),'항로 측량의 완성 해도가 부족합니다.');
+  const coolingLevel=c.tech?.cryodynamics||0;
+  check(!coolingLevel||(c.chapter>=4&&atlasSummary(c).full>=technologies.find(t=>t.id==='cryodynamics').charts[coolingLevel-1]),'빙해 제어의 설계도나 완성 해도가 부족합니다.');
   if(isOperation){check(!!c.frontier,'방어 진행 기록이 없습니다.');check(c.stage==='operation-result'?g.operation.result&&integer(g.operation.result.score,0,100)&&integer(g.operation.result.standing,0,160)&&integer(g.operation.result.total,0,160)&&typeof g.operation.result.first==='boolean':g.operation.result===null,'방어 결과가 올바르지 않습니다.');}
   check(typeof g.paused === 'boolean' && typeof g.combat === 'boolean', '일시정지 상태가 올바르지 않습니다.');
   check(c.waitingForDeparture===undefined || typeof c.waitingForDeparture==='boolean','현장 정비 상태가 올바르지 않습니다.');
@@ -161,9 +163,9 @@ export function validateCampaign(g) {
   check(c.stage === 'harbor' || !!g.checkpoint, '출항 전 복구 상태가 없습니다.');
   return true;
 }
-// An old engine must not silently replace a new dock's pursuit tactics even
-// when the save is taken before its first enemies spawn. Other saves keep v1.
-const requiredSaveVersion=g=>g.operation?.siegeVersion===2||g.enemies.some(e=>e.type==='raider')?2:1;
+// Old engines must refuse new control research or pursuit tactics instead of
+// silently discarding them. Unresearched saves retain their former envelope.
+const requiredSaveVersion=g=>Object.hasOwn(g.campaign.tech,'cryodynamics')?3:g.operation?.siegeVersion===2||g.enemies.some(e=>e.type==='raider')?2:1;
 export function encodeSave(g) {
   validateCampaign(g);
   const payload = JSON.parse(JSON.stringify({ ...g, events: [], accumulator: 0 }));
@@ -173,9 +175,9 @@ export function encodeSave(g) {
 export function decodeSave(text) {
   check(typeof text === 'string' && text.length <= 1000000, '저장 파일이 너무 큽니다.');
   const envelope = JSON.parse(text);
-  check(envelope.format === 'tidehold-campaign' && [1,2].includes(envelope.version) && checksum(JSON.stringify(envelope.payload)) === envelope.checksum, '저장 파일이 손상되었거나 지원되지 않습니다.');
+  check(envelope.format === 'tidehold-campaign' && [1,2,3].includes(envelope.version) && checksum(JSON.stringify(envelope.payload)) === envelope.checksum, '저장 파일이 손상되었거나 지원되지 않습니다.');
   const g = envelope.payload; validateCampaign(g);
-  check(envelope.version===requiredSaveVersion(g),'측면 추적 편대를 포함한 저장 형식이 올바르지 않습니다. 최신 실행판에서 복원하세요.');
+  check(envelope.version===requiredSaveVersion(g),'연구·편대 기능에 필요한 저장 형식이 올바르지 않습니다. 최신 실행판에서 복원하세요.');
   migrateAtlas(g.campaign);
   migrateWalls(g);
   g.fleet ||= emptyFleet();if(g.checkpoint)g.checkpoint.fleet ||= emptyFleet();

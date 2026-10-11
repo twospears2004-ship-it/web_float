@@ -85,6 +85,7 @@ export const technologies = [
   { id:'distributed',name:'분산 전력망',description:'시설 전력 용량 +1 / 단계 · 더 높은 시설 조합을 유지',cost:4,max:3,unlock:7,materials:1500,materialsStep:1000 },
   { id:'precision',name:'정밀 회수',description:'크레인 회수율 +10%p · 회수 범위 +3m / 단계 · 회수율 상한 80%',cost:6,max:3,unlock:9,materials:1200,materialsStep:800 },
   { id:'cartography',name:'항로 측량',description:'연구소 표본 +1 · 어획·작물 생산량 +10% / 단계',cost:4,max:2,materials:350,materialsStep:200,charts:[1,4] },
+  { id:'cryodynamics',name:'빙해 제어',description:'냉각탑 폭발 범위 +1m · 둔화 +5%p · 제어 파동 범위 +2m / 단계',cost:6,max:3,unlock:4,materials:2200,materialsStep:1800,charts:[6,12,18] },
 ];
 export const abilityDefinitions = {
   barrier: { name: '비상 보호막', key: '1', duration: 6, cooldown: 35, description: '6초 동안 섬·함대·호위선 피해 65% 감소' },

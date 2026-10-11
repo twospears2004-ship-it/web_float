@@ -1,4 +1,5 @@
 import { campaignRules, chapters, missions, getMission, missionSites, technologies, abilityDefinitions, bossPatterns, bossTactics } from './campaign-content.js';
+import {coolingStats} from './field-control.js';
 import { fieldDecisions } from './expedition-content.js';
 import { separateFromHull } from './hull.js';
 import {onSiteSecured,resetProductionForMission} from './production.js';
@@ -133,8 +134,16 @@ export function powerCapacity(g) { return 5 + g.campaign.chapter + (g.campaign.t
 export function maxFacilityLevel(g) { return Math.min(9,3+Math.floor(g.campaign.chapter/2)+(g.campaign.chapter===11?1:0)); }
 export const facilityPower = f => f.hp===0?0:['wall','mine'].includes(f.type)?0:campaignRules.weapons[f.type].power + Math.floor((f.level-1)/2);
 export function powerUsed(g) { return g.facilities.reduce((n,f)=>n+facilityPower(f),0); }
+export function abilityStats(g,id) {
+  const def=Object.hasOwn(abilityDefinitions,id)?abilityDefinitions[id]:undefined;
+  return id==='pulse'&&def?{...def,range:coolingStats(g?.campaign?.tech.cryodynamics||0).pulseRange}:def;
+}
+export function abilityDescription(g,id) {
+  const def=abilityStats(g,id);
+  return id==='pulse'?`${def.description} · 실제 범위 ${def.range}m`:def?.description||'';
+}
 export function useAbility(g, id) {
-  const c = g.campaign, def = abilityDefinitions[id];
+  const c = g.campaign, def = abilityStats(g,id);
   if (!c || !Object.hasOwn(abilityDefinitions,id) || !def || g.phase !== 'playing' || g.paused || !['mission','operation'].includes(c.stage) || c.pendingChoice || c.abilityCooldowns[id] > 0 || (id!=='brace' && c.abilityCharges && c.abilityCharges[id] <= 0)) return false;
   if(id==='brace' && !c.hazards.length){g.message='환경 공격 예고가 있을 때 정박 방호를 사용할 수 있습니다. 수호자의 공격에는 보호막을 사용하세요.';return false;}
   const repairAlly=!!c.allyPosition && c.allyHull/c.allyMaxHull<g.hull/g.maxHull;
@@ -155,7 +164,7 @@ export function useAbility(g, id) {
       e.pendingDamage = (e.pendingDamage || 0) + def.damage * (1 + (c.tech.ballistics || 0) * 0.12) * (1+(c.expeditionVersion===2?c.chapter*0.28:0));
       e.slowSeconds = 4; e.slowFactor = 0.3; e.active = true;
     }
-    event(g, { type: 'pulse', ...g.island });
+    event(g, { type: 'pulse', ...g.island, radius:def.range });
   }
   g.message = `${def.name} 사용!`; return true;
 }

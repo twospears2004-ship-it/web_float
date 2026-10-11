@@ -24,7 +24,7 @@ export function facilityEffect(g,f) {
       }
     }
   }
-  return `피해 ${number(w.damage)} · 범위 ${number(w.range)}m${w.splash?` · 폭발 ${number(w.splash)}m`:''}`;
+  return `피해 ${number(w.damage)} · 범위 ${number(w.range)}m${w.splash?` · 폭발 ${number(w.splash)}m`:''}${w.slow?` · 둔화 ${Math.round((1-w.slow)*100)}%`:''}`;
 }
 export function facilityGrowth(g,f) {
   const state=upgradeStatus(g,f.id),current=facilityEffect(g,f);
