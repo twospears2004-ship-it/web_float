@@ -1,0 +1,36 @@
+// Native guardian retaliation with a normally earned, publicly exported fleet.
+// Own hidden profile, actual elapsed time, public inputs, read-only inspection.
+import {_electron as electron,expect} from '@playwright/test';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import {decodeSave} from '../src/save.js';
+import {enemyStats} from '../src/game.js';
+import {captureNativeOutput,recordNativeFailure,observeNativeClose,closeNativeWindow} from './native-diagnostics.mjs';
+const pkg=JSON.parse(await fs.readFile('artifacts/desktop-package.json','utf8')),file='artifacts/boss-fleet-warning-earned.json',earned=decodeSave(await fs.readFile(file,'utf8'));
+const boss=earned.enemies.find(e=>e.type==='leviathan'&&e.hp>0),w=boss.windup,inside=earned.fleet.units.filter(u=>w.zones.some(z=>Math.hypot(u.x-z.x,u.z-z.z)<=z.radius+1));
+assert(w.remaining>1);assert.equal(earned.enemies.filter(e=>e.hp>0&&!e.captured).length,1);assert.equal(earned.fleet.units.length,2);assert(inside.length>0);assert(Math.hypot(earned.island.x-w.x,earned.island.z-w.z)>25);assert.deepEqual(Object.keys(w).sort(),['pattern','radius','remaining','x','z','zones']);
+const profile=path.resolve('artifacts/desktop-profiles',`boss-fleet-${Date.now()}`),records=[],errors=[],remoteRequests=[],nativeOutput=[],closeProof=[],started=Date.now();await fs.mkdir(profile,{recursive:true});let app,page;
+async function launch(clear=false){const env={...process.env,TIDEHOLD_TEST_MODE:'1',TIDEHOLD_PROFILE_DIR:profile,TIDEHOLD_CLEAR_RENDERER_CACHE:clear?'1':'0'};delete env.ELECTRON_RUN_AS_NODE;app=await electron.launch({executablePath:pkg.executable,args:[],env,timeout:60000});captureNativeOutput(app,nativeOutput);page=await app.firstWindow();await observeNativeClose(app);await page.waitForLoadState('domcontentloaded');assert.equal(await page.evaluate(()=>!!window.__TIDEHOLD__),false);assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isVisible()),false);page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(!/^(tidehold:|blob:|data:)/.test(r.url()))remoteRequests.push(r.url());});}
+async function close(){closeProof.push(await closeNativeWindow(app,nativeOutput));app=null;}
+const stored=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('tidehold.campaign.v1')).payload),disk=async()=>decodeSave(await fs.readFile(path.join(profile,'saves/campaign.json'),'utf8'));
+const compare=(a,b)=>{for(const key of ['resources','hull','campaign','enemies','facilities','fleet','checkpoint','operation'])assert.deepEqual(a[key],b[key],key);};
+try{
+  await launch();await page.locator('[data-start="destination"]').click();await page.locator('#save-file').setInputFiles(file);await expect(page.locator('#pause-overlay')).toBeVisible();compare(await stored(),earned);
+  const map=await page.locator('#minimap').boundingBox(),mapPoint={x:Math.round(map.x+(115+boss.x*.65)/230*map.width),y:Math.round(map.y+(100+boss.z*.65)/180*map.height)},focus={x:((mapPoint.x-map.x)*230/map.width-115)/.65,z:((mapPoint.y-map.y)*180/map.height-100)/.65};
+  // Pause freezes camera interpolation and its modal covers the map. Resume
+  // before the actual map input, then observe the first impact while it settles.
+  await page.locator('#resume-button').click();await page.keyboard.press('f');await page.keyboard.press('h');await page.mouse.click(mapPoint.x,mapPoint.y);
+  // A hidden native window can schedule RAF less frequently even without
+  // background throttling. Observe the real health change, not a fixed sleep
+  // or a virtual clock. pagehide uses the game's ordinary save path only.
+  await expect.poll(async()=>{await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));return (await stored()).fleet.units.find(u=>u.id===inside[0].id).hp;},{timeout:30000,intervals:[1000]}).toBeLessThan(inside[0].hp);
+  await page.keyboard.press('p');await expect(page.locator('#pause-overlay')).toBeVisible();await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));let hit=await stored();const damage=enemyStats(earned,boss).damage*(boss.bossPhase===2?2:1.5)*(1-(earned.campaign.buffs.protection||0))*(1-earned.campaign.tech.bulkhead*.06);
+  assert.equal(hit.hull,earned.hull);assert.equal(hit.resources,earned.resources);assert.deepEqual(hit.checkpoint,earned.checkpoint);for(const u of inside){const actual=hit.fleet.units.find(a=>a.id===u.id);assert(Math.abs(actual.hp-(u.hp-damage))<1e-7,`Guardian must hit ship #${u.id} once for ${damage}.`);assert.equal(actual.command.type,'hold');}
+  const currentBoss=hit.enemies.find(e=>e.id===boss.id),rect=await page.locator('#scene canvas').boundingBox(),camera=new THREE.OrthographicCamera(-29*rect.width/rect.height,29*rect.width/rect.height,29,-29,.1,450);camera.position.set(focus.x+Math.sin(.52)*52,50,focus.z+Math.cos(.52)*52);camera.lookAt(focus.x,0,focus.z);camera.updateMatrixWorld(true);const projected=new THREE.Vector3(currentBoss.x,.6,currentBoss.z).project(camera),point={x:rect.x+(projected.x+1)*rect.width/2,y:rect.y+(1-projected.y)*rect.height/2};
+  await page.locator('#resume-button').click();await page.mouse.click(point.x,point.y);await expect(page.locator('#contact-name')).toHaveText(enemyStats(earned,boss).name);await expect(page.locator('#contact-tactic')).toContainText('가까운 함대도 노립니다');await page.screenshot({path:'artifacts/boss-fleet-native.png'});await page.keyboard.press('p');await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));hit=await stored();await close();compare(await disk(),hit);records.push({action:'actual guardian area impact hits normally paid held fleet once while distant island remains unchanged; public retaliation hint and native close',resources:hit.resources,targetedShips:inside.map(u=>u.id),damage,sourceRemaining:w.remaining});
+  await launch(true);await page.locator('#continue-button').click();await expect(page.locator('#pause-overlay')).toBeVisible();compare(await stored(),hit);await expect(page.locator('#contact-panel')).toBeHidden();await close();compare(await disk(),hit);records.push({action:'renderer cache loss restores exact active guardian/fleet health, positions, orders, economy and departure checkpoint',restored:true});
+  await fs.writeFile(path.join(profile,'saves/campaign.json'),'{broken');await launch(true);await page.locator('#continue-button').click();await expect(page.locator('#pause-overlay')).toBeVisible();compare(await stored(),hit);await close();compare(await disk(),hit);records.push({action:'corrupted primary and empty renderer cache recover exact battle from native backup',restored:true});
+  assert.deepEqual(errors,[]);assert.deepEqual(remoteRequests,[]);const report={date:new Date().toISOString(),executable:pkg.executable,asarSha256:pkg.asarSha256,profile,sourceFile:file,sourceResources:earned.resources,actualSeconds:(Date.now()-started)/1000,records,errors,remoteRequests,closeProof,nativeOutput};await fs.writeFile('artifacts/boss-fleet-native.json',JSON.stringify(report,null,2));console.log(JSON.stringify({actualSeconds:report.actualSeconds,records,errors,remoteRequests,profile}));
+}catch(error){await recordNativeFailure({app,page,profile,error,errors,logs:nativeOutput,records,executable:pkg.executable});throw error;}finally{if(app)await app.close();}

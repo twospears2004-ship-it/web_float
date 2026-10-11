@@ -134,7 +134,7 @@ export function deployFleet(g) {
   for(const [i,u] of g.fleet.units.entries()){delete u.orders;Object.assign(u,anchor(g,i,g.fleet.units.length),{command:{type:'escort'},waypoints:[],repath:0,cooldown:0});}
 }
 export function threatenedUnit(g,e,base,stats) {
-  if(e.type==='leviathan'||!g.fleet?.units.length)return base;
+  if(!g.fleet?.units.length)return base;
   const unit=g.fleet.units.filter(u=>u.hp>0&&dist(u,e)<=stats.range+14).sort((a,b)=>dist(a,e)-dist(b,e)||a.id-b.id)[0];
   if(!unit)return base;
   const baseDistance=base===g.island?hullDistance(g,e):dist(base,e);

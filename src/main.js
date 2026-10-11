@@ -370,6 +370,7 @@ $('unit-list').addEventListener('keydown',e=>{
 });
 const fleetHelp=document.createElement('div');fleetHelp.className='fleet-help';fleetHelp.innerHTML='<h3>함대 지휘</h3><p>조선소 건설 → 함대 생산 → 원정 출항. Q로 함대 선택 모드를 켜고 클릭·드래그로 배를 선택합니다. Shift로 추가 선택, 우클릭으로 이동·적 공격, X로 공격 이동, H로 사수, G로 섬 호위, F로 전체 선택합니다. C로 선택 함대와 섬 시점을 전환하며 지도 클릭으로 먼 곳을 봅니다. 선택 모드에서 Alt+우클릭 드래그로 시점을 회전합니다. 유닛과 명령도 자동 저장됩니다.</p>';$('help-overlay').querySelector('dl').after(fleetHelp);
 fleetHelp.insertAdjacentHTML('beforeend','<p>선택 모드에서 아군을 두 번 클릭하면 화면 안의 같은 선종을 선택합니다. 함대 카드의 함선 이름을 Ctrl+클릭하거나 키보드로 Ctrl+Enter를 누르면 떨어져 있는 같은 선종 전체를 선택합니다. Shift를 함께 누르면 기존 선택에 추가합니다. 선택은 명령·예약·전대 편성을 바꾸지 않습니다.</p>');
+fleetHelp.insertAdjacentHTML('beforeend','<p>해역 수호자도 가까운 함대를 노립니다. 붉은 공격 예고는 준비를 시작한 위치에 고정됩니다. 함대를 이동·분산해 피하거나 비상 보호막으로 피해를 줄이세요. 격벽 보강 연구도 섬·함대·호위선에 함께 적용됩니다.</p>');
 $('help-overlay').querySelector('.help-dialog>p').textContent='캠페인은 자동 저장되며 이어하기와 저장 파일 내보내기를 지원합니다. 비교 훈련은 저장되지 않습니다.';
 fleetHelp.insertAdjacentHTML('beforeend','<p>5–9번으로 전대를 선택하고 Ctrl+숫자로 등록합니다. Ctrl+Shift+숫자는 편성에 추가, Shift+숫자는 현재 선택에 추가합니다. 같은 번호를 두 번 누르면 전대 시점으로 이동합니다. 전대도 캠페인에 저장되며 능력은 기존 1–4번을 사용합니다.</p>');
 fleetHelp.insertAdjacentHTML('beforeend','<p>Shift+우클릭으로 이동·공격 명령을 최대 8개 예약하세요. X를 켜고 Shift+우클릭하면 공격 이동을 예약합니다. 선택한 함대의 경로와 목적지가 바다에 표시됩니다. 일반 우클릭은 새 명령으로 교체하고, H 사수·G 호위는 예약을 지웁니다. 예약 명령도 자동 저장됩니다.</p>');

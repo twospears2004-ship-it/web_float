@@ -269,13 +269,16 @@ function tick(g, dt, input) {
       e.windup.remaining -= dt;
       if (e.windup.remaining <= 0) {
         const zones=e.windup.zones||[e.windup];
-        if (zones.some(zone=>(shipTarget?hullDistance(g,zone):distance(target,zone))<=zone.radius)) {
-          applyHullDamage(g, e, stats.damage * (e.bossPhase === 2 ? 2 : 1.5), target);
+        // A warning hits its original areas, irrespective of which threat is
+        // now closest. Check the island/ally and each living ship once so
+        // changing aggro neither grants immunity nor doubles overlapping hits.
+        if (zones.some(zone=>(physicalHull&&baseTarget===g.island?hullDistance(g,zone):distance(baseTarget,zone))<=zone.radius)) {
+          applyHullDamage(g, e, stats.damage * (e.bossPhase === 2 ? 2 : 1.5), baseTarget);
           if(e.windup.pattern==='pulse')for(const f of g.facilities)f.cooldown=Math.min(5,f.cooldown+0.8);
           if(e.windup.pattern==='roots')g.campaign.slowSeconds=5;
           if(e.windup.pattern==='darkness')g.campaign.darknessSeconds=6;
         }
-        for(const u of g.fleet?.units || [])if(u.hp>0&&u!==target&&zones.some(zone=>distance(u,zone)<=zone.radius+1))applyHullDamage(g,e,stats.damage*(e.bossPhase===2?2:1.5),u);
+        for(const u of g.fleet?.units || [])if(u.hp>0&&zones.some(zone=>distance(u,zone)<=zone.radius+1))applyHullDamage(g,e,stats.damage*(e.bossPhase===2?2:1.5),u);
         if(e.windup.pattern==='charge'){Object.assign(e,physicalHull?separateFromHull(g,e.windup,stats.radius):{x:e.windup.x,z:e.windup.z});}
         emit(g, { type: 'enemyShot', x: e.x, z: e.z, tx: e.windup.x, tz: e.windup.z, amount: stats.damage });
         e.windup = null; e.cooldown = stats.interval;

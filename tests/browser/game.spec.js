@@ -6,7 +6,8 @@ async function setup(page, mode) {
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('requestfailed', r => errors.push(`${r.url()}: ${r.failure()?.errorText}`));
-  await page.clock.install();
+  await page.clock.install({time:new Date('2026-10-11T12:00:00Z')});
+  await page.clock.pauseAt(new Date('2026-10-11T13:00:00Z'));
   await page.goto('/');
   await expect(page.locator('#start-title')).toHaveText('TIDEHOLD');
   await page.locator('[data-experience="training"]').click();

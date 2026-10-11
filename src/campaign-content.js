@@ -76,7 +76,7 @@ export const campaignRules = {
 
 export const technologies = [
   { id: 'ballistics', name: '탄도학', description: '모든 무장 피해 +12% / 단계', cost: 2, max: 5 },
-  { id: 'bulkhead', name: '격벽 보강', description: '최대 내구도 +80 · 섬·호위선 피해 -6% / 단계', cost: 2, max: 5 },
+  { id: 'bulkhead', name: '격벽 보강', description: '최대 내구도 +80 · 섬·함대·호위선 피해 -6% / 단계', cost: 2, max: 5 },
   { id: 'navigation', name: '항해 장치', description: '이동 속도 +8% / 단계', cost: 2, max: 3 },
   { id: 'logistics', name: '회수 기술', description: '적 처치 자원 +10% / 단계', cost: 2, max: 4 },
   { id: 'reactor', name: '동력 확장', description: '시설 전력 용량 +2 / 단계', cost: 2, max: 5 },
@@ -86,7 +86,7 @@ export const technologies = [
   { id:'cartography',name:'항로 측량',description:'연구소 표본 +1 · 어획·작물 생산량 +10% / 단계',cost:4,max:2,materials:350,materialsStep:200,charts:[1,4] },
 ];
 export const abilityDefinitions = {
-  barrier: { name: '비상 보호막', key: '1', duration: 6, cooldown: 35, description: '6초 동안 섬과 호위선 피해 65% 감소' },
+  barrier: { name: '비상 보호막', key: '1', duration: 6, cooldown: 35, description: '6초 동안 섬·함대·호위선 피해 65% 감소' },
   mend: { name: '긴급 수리', key: '2', cooldown: 50, heal: 90, description: '섬·호위선 중 내구도 비율이 낮은 쪽 +90' },
   pulse: { name: '충격 파동', key: '3', cooldown: 28, range: 24, damage: 28, description: '주변 적 피해와 4초 둔화' },
   brace: { name: '정박 방호', key: '4', duration: 3, cooldown: 8, description: '예고 중 사용 · 3초 이동 정지 · 환경 피해 85% 경감' },

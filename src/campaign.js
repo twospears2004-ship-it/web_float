@@ -114,15 +114,18 @@ export function campaignEnemyStats(g, e) {
 }
 export function bossWarning(g, e, target) {
   const pattern=campaignEnemyStats(g,e).pattern;
-  const zones=[{...target,radius:pattern==='maelstrom'?8:6}];
+  // Lock the warning to its cast position. Fleet commands, health and orders
+  // belong to ships, not telegraphs or campaign save warning records.
+  const point={x:target.x,z:target.z};
+  const zones=[{...point,radius:pattern==='maelstrom'?8:6}];
   if(['fan','broadside','battery','storm'].includes(pattern)) {
     const axis=pattern==='battery'?'z':'x';
-    zones.push({...target,[axis]:target[axis]-10,radius:5},{...target,[axis]:target[axis]+10,radius:5});
-    if(pattern==='storm')zones.push({...target,z:target.z-10,radius:5},{...target,z:target.z+10,radius:5});
+    zones.push({...point,[axis]:point[axis]-10,radius:5},{...point,[axis]:point[axis]+10,radius:5});
+    if(pattern==='storm')zones.push({...point,z:point.z-10,radius:5},{...point,z:point.z+10,radius:5});
   }
   if(pattern==='eruption')zones[0].radius=8;
   g.message=`${campaignEnemyStats(g,e).name}: ${bossTactics[pattern].attack} 예고! 붉은 영역을 피하거나 보호막을 사용하세요.`;
-  return {...target,radius:zones[0].radius,zones,pattern,remaining:pattern==='charge'?2.2:1.8};
+  return {...point,radius:zones[0].radius,zones,pattern,remaining:pattern==='charge'?2.2:1.8};
 }
 export function campaignDamageMultiplier(g, f) { return (1 + (g.campaign.tech.ballistics || 0) * 0.12) * (1+(g.campaign.buffs?.damage || 0)); }
 export function campaignMoveMultiplier(g) { return (1 + (g.campaign.tech.navigation || 0) * 0.08) * (1+(g.campaign.buffs?.speed || 0)); }

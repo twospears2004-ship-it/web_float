@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test';
 import fs from 'node:fs/promises';
 const snapshot=page=>page.evaluate(()=>window.__TIDEHOLD__.snapshot());
 async function fleetReady(page,mode) {
-  await page.clock.install();await page.goto('/');await page.locator(`[data-start="${mode}"]`).click();
+  await page.clock.install({time:new Date('2026-10-11T12:00:00Z')});await page.clock.pauseAt(new Date('2026-10-11T13:00:00Z'));await page.goto('/');await page.locator(`[data-start="${mode}"]`).click();
   // Normal-earned colony checkpoint. No direct state injections or free units.
   await page.locator('#save-file').setInputFiles('artifacts/colony-fixtures/coral-6-harbor.json');await page.locator('#resume-button').click();
   if(mode==='direct'){await page.locator('#mode-button').click();await page.locator('[data-start="direct"]').click();}
@@ -24,7 +24,7 @@ for(const mode of ['direct','destination'])test(`earned ${mode} fleet → click/
   g=await snapshot(page);await fs.writeFile(`artifacts/fleet-${mode}-formation-observation.json`,JSON.stringify({mode,destination,issued,island:g.island,time:g.time,units:g.fleet.units},null,2));for(const u of g.fleet.units)expect(Math.hypot(u.x-destination.x,u.z-destination.z)).toBeLessThan(3);
   await page.locator('[data-tab="fleet"]').click();await expect(page.locator('#fleet-capacity')).toContainText('2 / 6');await page.locator('#fleet-focus').click();await page.clock.runFor(500);
   await fs.mkdir('artifacts',{recursive:true});await page.screenshot({path:`artifacts/fleet-${mode}.png`});
-  await page.keyboard.press('p');await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));const saved=await snapshot(page);await page.clock.resume();await page.reload();await page.locator('#continue-button').click();
+  await page.keyboard.press('p');await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));const saved=await snapshot(page);await page.reload();await page.locator('#continue-button').click();
   expect((await snapshot(page)).fleet).toEqual(saved.fleet);expect(errors).toEqual([]);
 });
 test('selected fleet right-click attacks a real enemy and hands off to hold after death',async({page})=>{

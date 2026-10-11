@@ -28,6 +28,6 @@ export function inspectedContact(g,ui) {
   return {enemy,stats,selected,shield,repairRate,reinforcement,support:support.join(' / '),
     attacking:selected.filter(u=>u.command.type==='attack'&&u.command.target===enemy.id).length,
     queued:selected.filter(u=>u.orders?.some(o=>o.type==='attack'&&o.target===enemy.id)).length,
-    hint:enemy.type==='leviathan'?bossTactics[stats.pattern]?.hint:enemyTactics[enemy.type],
+    hint:enemy.type==='leviathan'?`${bossTactics[stats.pattern]?.hint || ''} 가까운 함대도 노립니다. 붉은 예고의 원래 위치에서 벗어나거나 비상 보호막으로 막으세요.`:enemyTactics[enemy.type],
     commandable:!g.paused&&!g.campaign.pendingChoice&&selected.length>0};
 }
