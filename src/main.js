@@ -419,8 +419,8 @@ $('minimap').addEventListener('click',e=>{
   if(!view||!ui.started||!game.campaign)return;const r=e.currentTarget.getBoundingClientRect();
   view.mapFocus={x:Math.max(-109,Math.min(109,((e.clientX-r.left)*230/r.width-115)/0.65)),z:Math.max(-109,Math.min(109,((e.clientY-r.top)*180/r.height-100)/0.65))};ui.fleetFocus=false;
 });
-let lastUnitKey='';
 function updateFleet() {
+  const focusedUnitAction=document.activeElement?.closest('#unit-list button');
   const c=game.campaign,units=(game.fleet?.units || []).filter(u=>u.hp>0),yard=Math.max(0,...game.facilities.filter(f=>f.type==='shipyard').map(f=>f.level));
   document.querySelector('[data-tab="fleet"]').hidden=!c;$('fleet-toolbar').hidden=!c||!units.length;
   if(!c)return;
@@ -439,9 +439,23 @@ function updateFleet() {
   document.querySelectorAll('[data-recruit]').forEach(b=>{const u=unitTypes[b.dataset.recruit];b.disabled=!safe||yard<u.yardLevel||c.chapter<u.unlock||fleetSupply(game)+u.supply>fleetCapacity(game)||game.resources<u.cost;b.title=`${u.description} · 정원 ${u.supply} · 조선소 ${u.yardLevel}단계 · ${u.unlock+1}번째 해역`;} );
   document.querySelectorAll('[data-order],#attack-move').forEach(b=>b.disabled=!commandable||!ui.selectedUnits.length);
   $('repair-fleet').textContent=`함대 수리 ◆ ${fleetRepairCost(game)}`;$('repair-fleet').disabled=!safe||fleetRepairCost(game)<=0||game.resources<fleetRepairCost(game);
-  const identity=JSON.stringify([units.map(u=>[u.id,u.type,u.level]),ui.selectedUnits]);
-  if(identity!==lastUnitKey){lastUnitKey=identity;$('unit-list').innerHTML=units.map(u=>`<div class="unit-card ${ui.selectedUnits.includes(u.id)?'selected':''}" data-unit-card="${u.id}"><button data-unit-select="${u.id}" aria-pressed="${ui.selectedUnits.includes(u.id)}">${unitTypes[u.type].icon} ${unitTypes[u.type].name} #${u.id} · ${u.level}단계</button><p data-unit-stats></p><div class="meter"><i data-unit-hp></i></div><small data-unit-command></small><div class="utility-row"><button data-unit-upgrade="${u.id}">강화 ◆ ${unitUpgradeCost(u)}</button><button data-unit-dismiss="${u.id}">편성 해제</button></div></div>`).join('')||'<p class="board-help">조선소에서 함대를 생산하면 이곳에서 편성·강화·수리할 수 있습니다.</p>';}
+  const cards=new Map([...$('unit-list').querySelectorAll('[data-unit-card]')].map(card=>[Number(card.dataset.unitCard),card])),alive=new Set(units.map(u=>u.id));
+  for(const [id,card] of cards)if(!alive.has(id))card.remove();
+  if(!units.length){if(!$('unit-list').querySelector('.board-help'))$('unit-list').innerHTML='<p class="board-help">조선소에서 함대를 생산하면 이곳에서 편성·강화·수리할 수 있습니다.</p>';}
+  else $('unit-list').querySelector('.board-help')?.remove();
+  for(const u of units){
+    let card=cards.get(u.id);
+    if(!card){card=document.createElement('div');card.className='unit-card';card.dataset.unitCard=String(u.id);card.innerHTML=`<button data-unit-select="${u.id}"></button><p data-unit-stats></p><div class="meter"><i data-unit-hp></i></div><small data-unit-command></small><div class="utility-row"><button data-unit-upgrade="${u.id}"></button><button data-unit-dismiss="${u.id}">편성 해제</button></div>`;$('unit-list').append(card);}
+    const selected=ui.selectedUnits.includes(u.id),button=card.querySelector('[data-unit-select]');
+    card.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));button.textContent=`${unitTypes[u.type].icon} ${unitTypes[u.type].name} #${u.id} · ${u.level}단계`;
+    card.querySelector('[data-unit-upgrade]').textContent=`강화 ◆ ${unitUpgradeCost(u)}`;
+  }
   for(const u of units){const card=document.querySelector(`[data-unit-card="${u.id}"]`),stats=unitStats(game,u),near=distance(u,game.island)<=fleetRules.serviceRange;card.querySelector('[data-unit-stats]').textContent=`내구도 ${Math.ceil(u.hp)} / ${u.maxHp} · 사거리 ${stats.range}m · ${stats.heal?`복구 ${Math.round(stats.heal)}`:`피해 ${Math.round(stats.damage)}`}`;card.querySelector('[data-unit-hp]').style.width=`${u.hp/u.maxHp*100}%`;card.querySelector('[data-unit-command]').textContent={escort:'섬 호위',hold:'위치 사수',move:'이동 중',attackMove:'공격하며 이동',attack:'집중 공격'}[u.command.type];card.querySelector('[data-unit-upgrade]').disabled=!safe||!near||u.level>=Math.min(6,2+Math.floor(c.chapter/2))||game.resources<unitUpgradeCost(u);card.querySelector('[data-unit-dismiss]').disabled=!safe||!near;}
+  if(focusedUnitAction&&(!focusedUnitAction.isConnected||focusedUnitAction.disabled)){
+    const id=focusedUnitAction.dataset.unitUpgrade||focusedUnitAction.dataset.unitDismiss||focusedUnitAction.dataset.unitSelect;
+    const fallback=document.querySelector(`[data-unit-select="${id}"]`)||$('unit-list').querySelector('[data-unit-select]')||$('select-all-units');
+    fallback.focus({preventScroll:true});
+  }
 }
 let lastFacilityKey = '', lastBoardKey = '';
 let lastDefenseKey='';
