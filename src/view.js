@@ -6,6 +6,7 @@ import {structureHull} from './fortifications.js';
 import {fixedEnemyRadius,basePower,powerConnections} from './siege-content.js';
 import { material, tileModel, coreModel, facilityModel, unitModel, enemyModel, animateBoss, decorationModel, terrainModel } from './models.js';
 import {TileBatch} from './tile-batch.js';
+import {inspectedContact} from './combat-inspector.js';
 const oceanColor=new THREE.Color(0x276a84);
 
 export class GameView {
@@ -53,6 +54,7 @@ export class GameView {
     this.tileBatch=new TileBatch(balance.tileSize);this.island.add(this.tileBatch.group);
     this.tiles = new Map(); this.facilities = new Map(); this.enemies = new Map(); this.bars = new Map(); this.effects = [];
     this.units=new Map();this.unitBars=new Map();this.commandMarkers=new THREE.Group();this.scene.add(this.commandMarkers);this.focusUnits=false;
+    this.contactRings=[0.10,0.006].map((width,i)=>{const ring=new THREE.Mesh(new THREE.RingGeometry(1-width,1,80),new THREE.MeshBasicMaterial({color:i?0xefb386:0xf2a07d,transparent:true,opacity:i?0.55:0.8,side:THREE.DoubleSide,depthWrite:false,depthTest:false}));ring.rotation.x=-Math.PI/2;ring.renderOrder=3;ring.visible=false;this.scene.add(ring);return ring;});
     this.structureBars=new Map();
     const linkGeometry=new THREE.BufferGeometry();linkGeometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(256*6),3));linkGeometry.setAttribute('color',new THREE.BufferAttribute(new Float32Array(256*6),3));linkGeometry.setDrawRange(0,0);
     this.powerLinks=new THREE.LineSegments(linkGeometry,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:0.65,depthWrite:false}));this.powerLinks.frustumCulled=false;this.scene.add(this.powerLinks);
@@ -127,6 +129,7 @@ export class GameView {
     this.tileBatch.clear();
     for (const map of [this.tiles, this.facilities, this.enemies, this.bars,this.units,this.unitBars,this.structureBars]) { for (const mesh of map.values()) this.release(mesh); map.clear(); }
     this.clearGroup(this.commandMarkers);this.focusUnits=false;this.commandKey='';this.mapFocus=null;
+    for(const ring of this.contactRings)ring.visible=false;
     this.clearGroup(this.decoration); this.clearGroup(this.ghosts);
     for (const e of this.effects) this.release(e.mesh); this.effects = [];
     this.target.set(0, 0, 0); this.lastGhostKey = '';
@@ -234,6 +237,8 @@ export class GameView {
     }this.powerLinks.visible=links.length>0;
     this.markers.forEach((m, i) => { m.visible = !g.sites[i]?.cleared && (g.operation?.kind==='explore'?g.operation.visible.includes(sites[i].id):!g.campaign || i===g.campaign.objectiveIndex || i===g.campaign.objectiveIndex+1); });
     const units=(g.fleet?.units || []).filter(u=>u.hp>0),unitIds=new Set(units.map(u=>u.id));
+    const contact=inspectedContact(g,ui);
+    for(const [i,ring] of this.contactRings.entries()){ring.visible=!!contact&&(i===0||contact.stats.range>0);if(contact){ring.position.set(contact.enemy.x,-0.45,contact.enemy.z);ring.scale.setScalar(i?contact.stats.range:fixedEnemyRadius(contact.enemy)||2.4);}}
     for(const map of [this.units,this.unitBars])for(const [id,mesh] of map)if(!unitIds.has(id)){this.release(mesh);map.delete(id);}
     for(const u of units) {
       let mesh=this.units.get(u.id),bar=this.unitBars.get(u.id);

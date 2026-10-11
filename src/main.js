@@ -20,6 +20,7 @@ import { launchMission, returnToHarbor, retryMission, availableMissions, useAbil
 import { saveCampaign, loadCampaign, encodeSave, decodeSave, SAVE_KEY } from './save.js';
 import {facilityGrowth} from './facility-growth.js';
 import {defenseWavePlan} from './defense-plans.js';
+import {inspectionContext,inspectedContact} from './combat-inspector.js';
 import {createDesktopBridge} from './desktop-bridge.js';
 import {createRenderCadence} from './render-cadence.js';
 import { GameAudio, loadSettings, SETTINGS_KEY } from './audio.js';
@@ -41,6 +42,7 @@ app.innerHTML = `
       <div id="tool-tip" class="tool-tip" hidden></div>
       <div id="selection-box" class="selection-box" hidden></div>
       <div id="fleet-toolbar" class="fleet-toolbar" hidden><button id="command-toggle" aria-pressed="false">Q 함대 선택</button><span id="selection-count">선택 0</span><button data-order="escort" title="G · 섬 호위">호위</button><button data-order="hold" title="H · 위치 사수">사수</button><button id="attack-move" aria-pressed="false" title="X · 다음 우클릭으로 공격 이동">공격 이동</button><button id="fleet-focus" title="C · 선택 함대 / 섬 시점 전환">함대 시점</button></div>
+      <section id="contact-panel" class="contact-panel" hidden aria-labelledby="contact-name"><div class="contact-heading"><strong id="contact-name"></strong><button id="close-contact" aria-label="적 정보 닫기">×</button></div><p id="contact-health"></p><div class="meter"><i id="contact-hp"></i></div><p id="contact-stats"></p><p id="contact-tactic"></p><p id="contact-orders"></p><button id="attack-contact"></button><small>적 클릭: 정보 · 함대 선택 모드에서 우클릭: 공격<br>Shift+공격: 예약 · 주황색 원: 적용 사거리</small></section>
       <div class="map-panel"><div class="map-title"><span>해역 지도</span><small>고정 시나리오 01</small></div><canvas id="minimap" width="230" height="180" aria-label="정박지와 세 전투 위치 지도"></canvas><div class="map-legend"><span>● 나의 섬</span><span>◇ 미탐사</span><span>✓ 정리</span></div></div>
       <div class="sea-bottom"><div class="hint-key" id="controls-hint">W A S D 이동 <span>·</span> 휠 확대 <span>·</span> 타일 클릭 배치</div><button id="mode-button" class="glass-button">⇄ 이동 방식 비교</button></div>
       <div id="floating-label" class="floating-label" hidden></div>
@@ -149,7 +151,7 @@ function installGame(next, tab = 'build') {
   audio.unlock();
   game = next; view?.reset(); keys.clear(); lastSiteKey = ''; lastCampaignKey = '';
   Object.assign(ui, { started: true, tool: null, selected: null, moving: null, hover: null, trackedSite: 'shoal' });
-  Object.assign(ui,{selectedUnits:[],commandMode:false,attackMove:false,fleetFocus:false});
+  Object.assign(ui,{selectedUnits:[],commandMode:false,attackMove:false,fleetFocus:false,inspectedEnemy:null,inspectionContext:null});
   ui.lastGroup=null;
   $('start-overlay').hidden = true; $('end-overlay').hidden = true; $('pause-overlay').hidden = true; $('help-overlay').hidden = true;
   $('replace-overlay').hidden = true; showTab(tab); update(true); $('pause-button').focus();
@@ -338,6 +340,10 @@ $('fleet-panel').addEventListener('click',e=>{
   else selectGroup(Number(b.dataset.controlGroup),e.shiftKey);
 });
 function issueOrder(type,point,append=false) {ui.lastGroup=null;if(orderUnits(game,ui.selectedUnits,type,point,append)){ui.attackMove=false;persist();}update(true);}
+function inspectEnemy(id) {ui.inspectedEnemy=id;ui.inspectionContext=inspectionContext(game);update(true);}
+function focusCombatControl(){($('fleet-toolbar').hidden?$('pause-button'):$('command-toggle')).focus({preventScroll:true});}
+$('close-contact').addEventListener('click',()=>{ui.inspectedEnemy=null;update(true);focusCombatControl();});
+$('attack-contact').addEventListener('click',e=>{const contact=inspectedContact(game,ui);if(contact?.commandable)issueOrder('attack',{id:contact.enemy.id},e.shiftKey);});
 $('command-toggle').addEventListener('click',()=>{ui.commandMode=!ui.commandMode;ui.tool=null;ui.hover=null;update(true);});
 document.querySelectorAll('[data-order]').forEach(b=>b.addEventListener('click',()=>issueOrder(b.dataset.order)));
 $('attack-move').addEventListener('click',()=>{ui.attackMove=!ui.attackMove;ui.commandMode=true;update(true);});
@@ -361,10 +367,10 @@ let rightDrag = null,selectionDrag=null;
 const canvas = view?.renderer.domElement;
 canvas?.addEventListener('pointerdown', e => {
   if(!ui.started||game.paused||game.phase!=='playing')return;
-  if(e.button===2&&ui.commandMode&&!e.altKey){const hit=view.pickCombat(e.clientX,e.clientY),point=view.pointAt(e.clientX,e.clientY);if(hit?.enemy)issueOrder('attack',{id:hit.enemy},e.shiftKey);else if(point)issueOrder(ui.attackMove?'attackMove':'move',point,e.shiftKey);return;}
+  if(e.button===2&&ui.commandMode&&!e.altKey){const hit=view.pickCombat(e.clientX,e.clientY),point=view.pointAt(e.clientX,e.clientY);if(hit?.enemy){inspectEnemy(hit.enemy);issueOrder('attack',{id:hit.enemy},e.shiftKey);}else if(point)issueOrder(ui.attackMove?'attackMove':'move',point,e.shiftKey);return;}
   if (e.button === 2 || e.button===1) { rightDrag = e.clientX; canvas.setPointerCapture(e.pointerId); }
   else if(e.button===0&&ui.commandMode){selectionDrag={x:e.clientX,y:e.clientY,shift:e.shiftKey};canvas.setPointerCapture(e.pointerId);}
-  else if (e.button === 0) { const tile = view.pick(e.clientX, e.clientY,ui.tool); if (tile) chooseTile(tile.x, tile.z,ui.tool==='wall'||(ui.tool==='move'&&game.facilities.find(f=>f.id===ui.moving)?.type==='wall')?tile.edge:undefined,tile.facilityId); else { ui.selected = null; update(true); } }
+  else if (e.button === 0) {const hit=!ui.tool&&game.campaign?view.pickCombat(e.clientX,e.clientY):null;if(hit?.enemy){inspectEnemy(hit.enemy);return;} const tile = view.pick(e.clientX, e.clientY,ui.tool); if (tile) chooseTile(tile.x, tile.z,ui.tool==='wall'||(ui.tool==='move'&&game.facilities.find(f=>f.id===ui.moving)?.type==='wall')?tile.edge:undefined,tile.facilityId); else { ui.selected = null; update(true); } }
 });
 canvas?.addEventListener('pointermove', e => {
   if (rightDrag !== null) { view.yaw -= (e.clientX - rightDrag) * 0.008; rightDrag = e.clientX; }
@@ -374,7 +380,7 @@ canvas?.addEventListener('pointermove', e => {
 canvas?.addEventListener('pointerup', e => {
   rightDrag=null;if(!selectionDrag)return;
   const start=selectionDrag;selectionDrag=null;$('selection-box').hidden=true;
-  if(Math.hypot(e.clientX-start.x,e.clientY-start.y)<5){const hit=view.pickCombat(e.clientX,e.clientY);selectUnits(hit?.unit?[hit.unit]:[],start.shift);}
+  if(Math.hypot(e.clientX-start.x,e.clientY-start.y)<5){const hit=view.pickCombat(e.clientX,e.clientY);if(hit?.enemy)inspectEnemy(hit.enemy);else {ui.inspectedEnemy=null;selectUnits(hit?.unit?[hit.unit]:[],start.shift);}}
   else {const x=Math.min(e.clientX,start.x),y=Math.min(e.clientY,start.y),right=Math.max(e.clientX,start.x),bottom=Math.max(e.clientY,start.y);selectUnits((game.fleet?.units || []).filter(u=>{const p=view.projectWorld(u);return u.hp>0&&p.x>=x&&p.x<=right&&p.y>=y&&p.y<=bottom;}).map(u=>u.id),start.shift);}
 });
 canvas?.addEventListener('pointercancel', () => { rightDrag = null;selectionDrag=null;$('selection-box').hidden=true; });
@@ -635,10 +641,24 @@ function updateFirstVoyage(){
   $('first-voyage-action').textContent=growing?'섬 정비 · 성장 시설 보기':preparing&&!armed&&game.resources>=100?'박격포 선택 · 배치도 열기':preparing?'첫 임무 목록 보기':'현재 목표 · 회수품 보기';
   $('first-voyage-action').disabled=game.paused||game.phase!=='playing';
 }
+function updateContact() {
+  const panel=$('contact-panel'),contact=inspectedContact(game,ui),focused=panel.contains(document.activeElement);
+  panel.hidden=!contact;
+  if(!contact){ui.inspectedEnemy=null;if(focused)focusCombatControl();return;}
+  const {enemy,stats,selected,attacking,queued,commandable}=contact;
+  $('contact-name').textContent=stats.name;
+  $('contact-health').textContent=`내구도 ${Math.ceil(enemy.hp)} / ${Math.ceil(enemy.maxHp)} · ${enemy.active?'교전 중':'대기 중'}`;
+  $('contact-hp').style.width=`${enemy.hp/enemy.maxHp*100}%`;
+  $('contact-stats').textContent=`장갑 ${Math.round(stats.armor*100)}% · 사거리 ${stats.range}m · ${stats.heal?`복구 ${stats.heal}`:`피해 ${Math.round(stats.damage*10)/10}`}`;
+  $('contact-tactic').textContent=contact.hint||'주변 위협과 사거리를 확인하고 접근하세요.';
+  $('contact-orders').textContent=`선택 ${selected.length}기 · 이 적 공격 ${attacking}기${queued?` · 예약 ${queued}기`:''}`;
+  const button=$('attack-contact');button.textContent=selected.length?`선택 ${selected.length}기 집중 공격`:'함대를 먼저 선택하세요';button.disabled=!commandable;
+  if(button.disabled&&document.activeElement===button)$('close-contact').focus({preventScroll:true});
+}
 function update(force = false) {
   updateRefitSummary();
   updateFirstVoyage();
-  renderSites(); const rules = rulesFor(game), sites = sitesFor(game); updateCampaign(force);updateFleet();updateAtlas(force);
+  renderSites(); const rules = rulesFor(game), sites = sitesFor(game); updateCampaign(force);updateFleet();updateContact();updateAtlas(force);
   $('resources').textContent = game.resources; $('hull-label').textContent = `${Math.ceil(game.hull)} / ${game.maxHull}`;
   const hullRatio = game.hull / game.maxHull; $('hull-fill').style.width = `${hullRatio * 100}%`; $('hull-fill').classList.toggle('low', hullRatio < 0.35);
   $('message').textContent = game.message; $('kill-count').textContent = `격파 ${game.kills} · 획득 ${game.earned}`;
