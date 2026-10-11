@@ -1,5 +1,25 @@
 # 장편 캠페인 개발 및 검증 상태
 
+## 2026-10-11 함대 예약 경로와 불러오기 오류 안내
+
+현재 게임 소스(JS/JSON) 해시는 `be539cc5b93ba13e7f37944d60878a34fe11fed779303f7bb9cd2466feb3d2eb`다. Shift+우클릭으로 함선마다 이동·공격·공격 이동8개를 예약하고, 선택한 함대의 경로/목적지와 예약 수를 표시한다. 새 명령·H/G는 예약을 지우고 파괴/확보된 목표는 건너뛴다. 예약 한도는 선택 편대 전체를 원자적으로 거부하며 출항/귀환/다음 거점 배치 때 이전 예약을 지운다. 현재 명령과 예약을 저장하고 예약 필드가 없는 이전 저장을 지원한다. 재화·적 체력·출항 대기시간은 늘리지 않았다.
+
+잘못된 저장을 불러온 이유가5초 자동 저장 안내에 덮이는 UI 문제를 수정했다. 별도 오류 안내가 닫기 또는 정상 불러오기까지 유지되며 자동 저장은 계속 수행한다. 파일 내용은 텍스트로 표시하고 기존 캠페인/자원/시설을 보존한다.
+
+- 전체 규칙 **175/175** 통과(1.140초). Windows 임시 디렉터리 교체를 샌드박스가 거부한3건의 최초 로그를 보존한 뒤 실제 파일 환경에서 재검증했다. `artifacts/fleet-orders-approved-rules.log`.
+- 예약 실행/내보내기/재접속/취소 UI2건과 오류 안내 UI1건 **3/3**(19.0초), 최대8개 예약/초과 거부/그래픽 생성·해제 UI **1/1**(8.6초). 선택 함대2척의 최대 경로에서 geometry161→181→161, texture4 유지가6회 반복됐다. 가상 UI 시계 표본이며 실제 플레이 시간이나 대규모 함대 FPS 보장이 아니다. `fleet-orders-final.log`, `fleet-orders-render.log/json`, `fleet-orders-route.png`, `fleet-orders-export.json`.
+- 기존 A/B 전대·포커스/단축키 경계·정비정 지휘 **4/4**, 기존 캠페인 잘못된 불러오기와 탐험 기록 거부 및 새 오류 보존 **3/3**이 별도 실행에서 통과했다. 중복 검사를 합산해 하나의 전체 실행으로 보고하지 않는다. 검사 시계의 과거 정지 시각과 일시정지창 뒤 클릭의 초기 실패를 보존하고 검사 순서만 수정했다. `fleet-orders-browser.log`, `import-status-recheck.log`.
+- 현재 실행판은 `release/2026-10-11T05-58-27-932Z/TIDEHOLD-win32-x64/TIDEHOLD.exe`, 게임 번들 `/assets/index-B6TQzFY6.js`다. 실제 EXE의 결제·종료·재시작·캐시 손실·기본 파일 손상/백업·읽기 전용 저장 실패/안전 종료/재시도·브라우저 저장 실패 흐름6건이 통과했다. `fleet-orders-native-recovery.log`, `desktop-packaged.json`.
+- 실행 폴더36파일/ASAR45항목과 ZIP76항목/필수6항목이 일치하고 개인 프로필 포함0, 실행 바로가기 ValidateOnly도 같은 EXE를 확인했다. `network-package-integrity.json`, `fleet-orders-archive-check.log`, `fleet-orders-source-proof.json`.
+
+실제 EXE의예약 결제/정상 종료 저장/캐시 삭제 후 같은 함대 복원/실제6초 자동 저장 뒤 오류 안내 보존은 확인했다. 전체 예약 실행의45초 및 추가60초 제한은 실패했다. 읽기 전용 관측에서 숨겨진 검사 창은5초 실제 시간에 약0.5게임초를 진행하고 일시정지하지 않은 채 정상 좌표를 이동한다. 배경 제한 해제 인자와 저부하 그래픽에서도 관측했으며 원인은 미확정이다. 게임 시간을 가속하지 않고 더 긴 실제 관측을 수행했으며, 정상 결제3척/선택2척/예약2개 → 정상 종료 저장 → 캐시 삭제 후 디스크 복원 → 실제6초 자동 저장 뒤 오류 안내 유지 → 예약 경로 완주/사수 → 정상 종료 저장이 **147.887초**에 통과했다. 두 목적지의 최종 위치 오차는0.6m 미만, 자원406 유지, 오류/외부 요청0, 개발 훅/가상 시계 없음이다. 이 숨겨진 저부하 검사 창의 진행 속도를 실제 사용자 창의 FPS 또는20시간 콘텐츠 근거로 사용하지 않는다. 성공 보고서는 rtifacts/fleet-orders-native.json, 로그는 leet-orders-native-observed.log다. 초기 짧은 목적지/미니맵에 가린 좌표/시간 제한 실패를 각각 보존했다. `fleet-orders-native-initial-failure.json`, `fleet-orders-native-minimap-failure.json`, `fleet-orders-native-timing-failure.json`, `fleet-orders-native-unthrottled-failure.json`, `fleet-orders-native-low-initial-failure.json`, `fleet-orders-native-observed.log`.
+
+현재 소스 고정 복사본 `artifacts/full-ui-2026-10-11T06-02-29-107Z/`에서 규칙175개 통과 후 UI74개를 실행 중이다. 소스 트리 SHA는 `d93bc9e89ac952d209fd2f0d3d15e3f51d7f4427fbc05ce3cf60caa36fa16b3c`, 검사 트리 SHA는 `f331cc566876c4f7d603da40953e423c4de196bb82f5bba8dfa1a2d4bdbb8bd8`다. 그 뒤 추가한 경로 그래픽 수명1건은 별도 통과한 검사다. 전체 통과를 아직 선언하지 않는다.
+
+이전 전체/UI 실제 시간 검사는9시47분 이후 갱신되지 않았고 해당 소유자/전용 서버가 없음을 Win32_Process로 확인했다. 기존 report/live-audit 원문을 `.orphaned-2026-10-11T06-04-08-151Z.json`으로 복사한 뒤 실패 상태와 중단 원인/시각 미확정을 기록했다. 이전 전체 UI는 첫 탐험에서 스크린샷 제한 실패, 잘못된 기록 거부 안내 덮임 실패, 이어진8개 완료 관측까지이며 전체 성공이 아니다.
+
+같은15d7 고정 게임의45개 완료 실제 기록은 이어서 검증한다. 첫 재개6구간은 캐시가 마지막 관측보다20.516667게임초 이전이고 자원70이 적어10초 복구 범위에서 거부했다. 파일을 조작해 범위를 통과시키지 않았다. 정상 이어하기로 새로 관측한 전용 프로필의 저장(475.1게임초/자원13918/목표4)을 검증하고 차이를 `run-6/interruption-comparison.json`에 보존한 뒤7구간을 재개했다. 같은 완료 원장/소스/개인 프로필 분리를 유지하고 시간 공백을 연속 플레이로 합치지 않는다. kelp-4는728.483333게임초로 완료했으며 이번 이어하기 이후 실제254.159초는 별도로 기록한다. kelp-5도322.75게임초/실제323.294초로 완료했으며 현재47개 완료 뒤 kelp-6를 진행한다. `live-current-instancing-full-resume6.log`, `live-current-instancing-full-resume7.log`, `live-current-instancing-full-20261011/live-audit.json`. 일반적인20시간 플레이·반복성·출시 품질은 미완료다.
+
 ## 2026-10-11 현재 UI 전체 회귀 시작과 실제 검사5구간
 
 게임 UI는 직전 소스243a8367/실행판을 유지한다. `scripts/full-ui-check.mjs`가 게임·공개 에셋·desktop·검사·검사 스크립트·검사용 저장을 별도 폴더에 복사하고 설치된 의존성만 재사용한다. 개인 저장/프로필/릴리스/Git을 복사하지 않는다. 소스·검사 트리의 파일별SHA를 기록하고 종료 시 동일성을 검사한다. 현재 복사본은 `artifacts/full-ui-2026-10-11T00-32-41-713Z/project/`, 전용 포트5203이며 report.json의 소스 트리 해시는 `b83fdbb7e35c5e0e9526ae207404ec88916450ad0b3aa4a55505043b7ff80b95`, 검사 트리 해시는 `5d142970c090326005ca368eef0da8884f9c617db18764e48cd1c603962ca44b`다. src 전체/CSS를 포함하는 이 트리 해시는 JS/JSON만 이어 붙이는 기존 게임 소스 해시와 계산법이 다르다. 규칙169개가2.515초에 통과했고 전체 UI71개는 진행 중이다. 별도 실제 핸들86792로 관찰하며, 전체 통과나 출시 완료라고 보고하지 않는다.

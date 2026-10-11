@@ -243,12 +243,25 @@ export class GameView {
       const ratio=u.hp/u.maxHp;bar.userData.fill.scale.x=ratio;bar.userData.fill.position.x=-(1-ratio)*1.75;
     }
     const commanded=units.filter(u=>ui.selectedUnits?.includes(u.id)&&['move','attackMove','attack'].includes(u.command.type));
-    const commandKey=JSON.stringify(commanded.map(u=>[u.id,u.command]));
+    const commandKey=JSON.stringify(commanded.map(u=>[u.id,u.command,u.orders]));
     if(commandKey!==this.commandKey) {
       this.commandKey=commandKey;this.clearGroup(this.commandMarkers);
-      for(const u of commanded){const ring=new THREE.Mesh(new THREE.RingGeometry(0.7,0.9,24),new THREE.MeshBasicMaterial({color:u.command.type==='attack'?0xef9c83:0xb5e6b0,side:THREE.DoubleSide,depthTest:false}));ring.userData.ownedMaterial=true;ring.userData.unit=u.id;ring.rotation.x=-Math.PI/2;ring.renderOrder=3;this.commandMarkers.add(ring);}
+      for(const u of commanded){
+        const orders=[u.command,...u.orders||[]];
+        for(const [index,order] of orders.entries()){
+          const ring=new THREE.Mesh(new THREE.RingGeometry(index?0.4:0.7,index?0.6:0.9,24),new THREE.MeshBasicMaterial({color:order.type==='attack'?0xef9c83:order.type==='attackMove'?0xf5d48b:0xb5e6b0,side:THREE.DoubleSide,depthTest:false}));
+          Object.assign(ring.userData,{ownedMaterial:true,unit:u.id,orderIndex:index});ring.rotation.x=-Math.PI/2;ring.renderOrder=3;this.commandMarkers.add(ring);
+        }
+        const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array((orders.length+1)*3),3));
+        const line=new THREE.Line(geometry,new THREE.LineBasicMaterial({color:0xb5e6b0,transparent:true,opacity:0.65,depthTest:false}));
+        Object.assign(line.userData,{ownedMaterial:true,unit:u.id,route:true});line.frustumCulled=false;line.renderOrder=2;this.commandMarkers.add(line);
+      }
     }
-    for(const mesh of this.commandMarkers.children){const u=units.find(u=>u.id===mesh.userData.unit),point=u.command.type==='attack'?g.enemies.find(e=>e.id===u.command.target):u.command;mesh.visible=!!point&&point.hp!==0;if(point)mesh.position.set(point.x,-0.6,point.z);}
+    for(const mesh of this.commandMarkers.children){
+      const u=units.find(u=>u.id===mesh.userData.unit),orders=[u.command,...u.orders||[]],destination=order=>order?.type==='attack'?g.enemies.find(e=>e.id===order.target&&e.hp>0&&!e.captured):order;
+      if(mesh.userData.route){const points=[u,...orders.map(destination).filter(Boolean)],positions=mesh.geometry.attributes.position;for(const [index,p] of points.entries())positions.setXYZ(index,p.x,-0.6,p.z);positions.needsUpdate=true;mesh.geometry.setDrawRange(0,points.length);}
+      else {const point=destination(orders[mesh.userData.orderIndex]);mesh.visible=!!point;if(point)mesh.position.set(point.x,-0.6,point.z);}
+    }
     this.homeMarker.visible = Math.hypot(g.island.x,g.island.z)>14;
     const selected = g.facilities.find(f => f.id === ui.selected);
     this.range.visible = !!selected;

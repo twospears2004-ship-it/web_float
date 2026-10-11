@@ -62,7 +62,7 @@ test('campaign progress survives mode switching; settings pause combat; bad impo
   await page.locator('[data-tab="campaign"]').click();await page.keyboard.press('p');
   await page.locator('#resume-button').click();g=await snapshot(page);
   await page.locator('#save-file').setInputFiles({name:'broken.json',mimeType:'application/json',buffer:Buffer.from('{}')});
-  await expect(page.locator('#save-status')).toContainText('불러오기 실패');expect((await snapshot(page)).resources).toBe(g.resources);
+  await expect(page.locator('#import-save-status')).toContainText('불러오기 실패');expect((await snapshot(page)).resources).toBe(g.resources);
   await page.screenshot({path:'artifacts/campaign-combat.png'});expect(errors).toEqual([]);
 });
 test('first chapter completes all six objective types through real UI and unlocks frost designs',async({page})=>{

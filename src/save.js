@@ -36,6 +36,7 @@ function validateFleet(fleet) {
     check(u.command&&['move','attackMove','attack','hold','escort'].includes(u.command.type),'함대 명령을 복원할 수 없습니다.');
     if(['move','attackMove'].includes(u.command.type))check(position(u.command,110),'함대 이동 목표가 올바르지 않습니다.');
     if(u.command.type==='attack')check(typeof u.command.target==='string'&&u.command.target.length<100,'함대 공격 목표가 올바르지 않습니다.');
+    if(u.orders!==undefined)check(Array.isArray(u.orders)&&u.orders.length<=fleetRules.maximumQueuedOrders&&u.orders.every(order=>order&&(['move','attackMove'].includes(order.type)?position(order,110):order.type==='attack'&&typeof order.target==='string'&&order.target.length>0&&order.target.length<100)),'함대 예약 명령이 올바르지 않습니다.');
     check(Array.isArray(u.waypoints)&&u.waypoints.length<=128&&u.waypoints.every(p=>position(p,110)),'함대 항로가 올바르지 않습니다.');
   }
   if(fleet.groups!==undefined){

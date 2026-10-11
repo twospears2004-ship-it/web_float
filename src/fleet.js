@@ -65,24 +65,38 @@ export function dismissUnit(g,id) {
   const u=g.fleet?.units.find(u=>u.id===id&&u.hp>0);if(!manageable(g)||!u||dist(u,g.island)>fleetRules.serviceRange)return false;
   g.fleet.units=g.fleet.units.filter(other=>other!==u);pruneControlGroups(g.fleet);g.message='함대를 편성에서 해제했습니다.';return true;
 }
-export function orderUnits(g,ids,type,point) {
+export function orderUnits(g,ids,type,point,append=false) {
   if(!g.campaign||!['mission','operation'].includes(g.campaign.stage)||g.phase!=='playing'||g.paused||g.campaign.pendingChoice||!['move','attackMove','attack','hold','escort'].includes(type))return false;
   const units=(g.fleet?.units || []).filter(u=>u.hp>0&&ids.includes(u.id));if(!units.length)return false;
   const enemy=type==='attack'?g.enemies.find(e=>e.id===point?.id&&e.hp>0&&!e.captured):null;
   if(type==='attack'&&!enemy)return false;
   if(['move','attackMove'].includes(type)&&(!Number.isFinite(point?.x)||!Number.isFinite(point?.z)||Math.abs(point.x)>110||Math.abs(point.z)>110))return false;
+  const queued=append&&['move','attackMove','attack'].includes(type);
+  // A formation receives the entire order or none of it, even if only one
+  // selected ship has reached the queue limit.
+  if(queued&&units.some(u=>['move','attackMove','attack'].includes(u.command.type)&&(u.orders?.length||0)>=fleetRules.maximumQueuedOrders))return deny(g,`예약 명령은 함선당 ${fleetRules.maximumQueuedOrders}개까지 가능합니다. 새 우클릭이나 H로 다시 지휘하세요.`);
   const width=Math.ceil(Math.sqrt(units.length)),destinations=(g.fleet?.units||[]).filter(u=>u.hp>0&&!ids.includes(u.id)&&u.command?.type==='hold').map(u=>({x:u.x,z:u.z,radius:unitTypes[u.type].radius}));
   for(const [i,u] of units.entries()) {
     const destination=['move','attackMove'].includes(type)?waterPoint(g,{x:point.x+(i%width-(width-1)/2)*3,z:point.z+(Math.floor(i/width)-(Math.ceil(units.length/width)-1)/2)*3},unitTypes[u.type].radius,destinations):null;
     if(destination)destinations.push({...destination,radius:unitTypes[u.type].radius});
-    u.command=enemy?{type,target:enemy.id}:destination?{type,...destination}:{type};u.waypoints=[];u.repath=0;
+    const command=enemy?{type,target:enemy.id}:destination?{type,...destination}:{type};
+    if(queued&&['move','attackMove','attack'].includes(u.command.type)){
+      u.orders||=[];u.orders.push(command);
+    }else {u.command=command;delete u.orders;u.waypoints=[];u.repath=0;}
   }
   if(['move','attackMove','attack'].includes(type))g.campaign.waitingForDeparture=false;
-  g.message=`함대 ${units.length}기: ${{move:'이동',attackMove:'공격 이동',attack:'집중 공격',hold:'위치 사수',escort:'섬 호위'}[type]} 명령.`;return true;
+  g.message=`함대 ${units.length}기: ${{move:'이동',attackMove:'공격 이동',attack:'집중 공격',hold:'위치 사수',escort:'섬 호위'}[type]} ${queued?'예약':'명령'}.`;return true;
+}
+function finishOrder(g,u) {
+  let next;
+  // Destroyed or captured targets cannot strand the remainder of a route.
+  while(u.orders?.length){const order=u.orders.shift();if(order.type!=='attack'||g.enemies.some(e=>e.id===order.target&&e.hp>0&&!e.captured)){next=order;break;}}
+  if(!u.orders?.length)delete u.orders;
+  u.command=next||{type:'hold'};u.waypoints=[];u.repath=0;
 }
 export function deployFleet(g) {
   if(!g.fleet)return;g.fleet.units=g.fleet.units.filter(u=>u.hp>0);pruneControlGroups(g.fleet);
-  for(const [i,u] of g.fleet.units.entries())Object.assign(u,anchor(g,i,g.fleet.units.length),{command:{type:'escort'},waypoints:[],repath:0,cooldown:0});
+  for(const [i,u] of g.fleet.units.entries()){delete u.orders;Object.assign(u,anchor(g,i,g.fleet.units.length),{command:{type:'escort'},waypoints:[],repath:0,cooldown:0});}
 }
 export function threatenedUnit(g,e,base,stats) {
   if(e.type==='leviathan'||!g.fleet?.units.length)return base;
@@ -125,12 +139,12 @@ export function tickFleet(g,dt,damageEnemy,enemyStats) {
   const living=g.fleet.units.filter(u=>u.hp>0);
   for(const [index,u] of living.entries()) {
     if(!navigable(g,u,unitTypes[u.type].radius)){Object.assign(u,waterPoint(g,u,unitTypes[u.type].radius));u.waypoints=[];u.repath=0;}
+    if(u.command?.type==='attack'&&!g.enemies.some(e=>e.id===u.command.target&&e.hp>0&&!e.captured))finishOrder(g,u);
     const stats=unitStats(g,u),command=u.command || {type:'escort'};u.cooldown=Math.max(0,u.cooldown-dt);
     const automatic=!g.campaign.waitingForDeparture && ['escort','hold','attackMove'].includes(command.type);
     // Passive defense reacts to an existing engagement. Only a deliberate
     // attack or attack-move may open fire on an undiscovered opponent.
     let target=command.type==='attack'?g.enemies.find(e=>e.id===command.target&&e.hp>0&&!e.captured):automatic?g.enemies.filter(e=>e.hp>0&&!e.captured&&(e.active||command.type==='attackMove')&&dist(u,e)<=stats.range+(command.type==='hold'?0:9)).sort((a,b)=>(['bomber','tender','carrier'].includes(a.type)?0:1)-(['bomber','tender','carrier'].includes(b.type)?0:1)||dist(u,a)-dist(u,b))[0]:null;
-    if(command.type==='attack'&&!target){u.command={type:'hold'};u.waypoints=[];}
     if(stats.heal) {
       const candidates=living.filter(other=>other.hp<other.maxHp&&dist(u,other)<=stats.range);
       if(g.hull<g.maxHull&&hullDistance(g,u)<=stats.range)candidates.push({ship:true,hp:g.hull,maxHp:g.maxHull});
@@ -152,7 +166,7 @@ export function tickFleet(g,dt,damageEnemy,enemyStats) {
         u.aim=Math.atan2(target.x-u.x,target.z-u.z);u.cooldown=stats.interval;g.shots++;emit(g,{type:'shot',weapon:u.type,x:u.x,z:u.z,tx:target.x,tz:target.z,splash:stats.splash || 0});
         for(const e of g.enemies)if(e.hp>0&&(e===target || (stats.splash&&dist(e,target)<=stats.splash)))damageEnemy(g,e,stats.damage*(1-(enemyStats(g,e).armor || 0)*(1-(stats.pierce || 0))));
       }
-    }else if(['move','attackMove'].includes(command.type)){if(sail(g,u,command,dt,stats.speed,stats.radius))u.command={type:'hold'};}
+    }else if(['move','attackMove'].includes(command.type)){if(sail(g,u,command,dt,stats.speed,stats.radius))finishOrder(g,u);}
     else if(command.type==='escort')sail(g,u,anchor(g,index,living.length),dt,stats.speed,stats.radius);
   }
   // Prevent stacked silhouettes while respecting the same water navigation.

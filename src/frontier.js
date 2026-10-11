@@ -63,7 +63,7 @@ export function afterDefenseTick(g,dt=1/60) {
     const site=g.catalog[op.round];g.sites[op.round].cleared=true;onSiteSecured(g,site);
     // Captured structures/guards cease fighting; no free kills or salvage.
     for(const e of g.enemies)if(e.hp>0){e.captured=true;e.active=false;e.pendingDamage=0;}
-    for(const u of g.fleet?.units || []){u.command={type:'escort'};u.waypoints=[];u.repath=0;}
+    for(const u of g.fleet?.units || []){u.command={type:'escort'};delete u.orders;u.waypoints=[];u.repath=0;}
     g.route=null;
   }else if(g.enemies.some(e=>e.hp>0))return;
   g.combat=false;

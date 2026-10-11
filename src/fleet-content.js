@@ -1,4 +1,4 @@
-export const fleetRules={maximum:24,baseCapacity:4,capacityPerLevel:2,serviceRange:34,repairCostPerHull:0.18,upgradeCostScale:0.8};
+export const fleetRules={maximum:24,baseCapacity:4,capacityPerLevel:2,serviceRange:34,repairCostPerHull:0.18,upgradeCostScale:0.8,maximumQueuedOrders:8};
 export const unitTypes={
   skiff:{name:'요격정',icon:'➤',cost:45,supply:1,hp:85,speed:12,range:16,damage:7,interval:0.8,pierce:0,radius:0.85,unlock:0,yardLevel:1,description:'빠른 기동과 호위 · 약한 적과 폭발물을 차단'},
   gunboat:{name:'포격정',icon:'◉',cost:100,supply:2,hp:150,speed:7,range:22,damage:17,interval:1.9,pierce:0.2,splash:4,radius:1.15,unlock:1,yardLevel:2,description:'멀리서 범위 포격 · 밀집한 수비대를 제압'},
