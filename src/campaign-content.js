@@ -65,6 +65,7 @@ export const campaignRules = {
     nest: { name: '침식 포대', hp: 210, speed: 0, damage: 14, range: 31, interval: 2, reward: 23, radius: 3.3, armor: 0.55 },
     leviathan: { name: '해역 수호자', hp: 580, speed: 1.8, damage: 18, range: 10, interval: 2, reward: 70, radius: 3.5, armor: 0.4 },
     skimmer: { name: '해류 사냥꾼', hp: 48, speed: 5.8, damage: 8, range: 8, interval: 1.7, reward: 12, radius: 1.3, armor: 0 },
+    raider: { name:'측면 추적자',hp:75,speed:4.4,damage:11,range:10,interval:1.8,reward:18,radius:1.55,armor:0.1 },
     armored: { name: '철갑 해수', hp: 170, speed: 1.9, damage: 16, range: 9, interval: 1.9, reward: 20, radius: 2.3, armor: 0.7 },
     spitter: { name: '독침 사수', hp: 95, speed: 2.2, damage: 11, range: 25, standoff:12, interval: 2.1, reward: 17, radius: 1.8, armor: 0 },
     bomber: { name: '폭발 해파리', hp: 55, speed: 3.6, damage: 48, range: 7, interval: 4, reward: 15, radius: 1.6, armor: 0, suicide: true },
@@ -112,6 +113,7 @@ export const bossTactics = {
 export const enemyTactics = {
   crawler:'접근해 물어뜯습니다. 빠른 연사포로 제압하세요.',
   skimmer:'빠르게 접근합니다. 냉각탑과 가까운 호위 무장이 효과적입니다.',
+  raider:'24m 안의 정비정·방호정을 우선 추적하고 함선 옆으로 돌아갑니다. 지원선을 전투선 뒤에 두고 빠른 요격정·냉각탑으로 차단하세요. 지원선이 멀어지면 가까운 위협으로 돌아옵니다.',
   armored:'두꺼운 장갑을 관통포로 뚫으세요.',
   nest:'고정 장거리 포대입니다. 관통포와 포대 해체로 방호망을 약화하세요.',
   spitter:'12m 안으로 접근하면 뒤로 물러나며 사격합니다. 더 빠른 요격정·섬으로 압박하거나 냉각탑과 긴 사거리 무장으로 잡으세요.',

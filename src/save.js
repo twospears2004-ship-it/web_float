@@ -87,6 +87,7 @@ export function validateCampaign(g) {
   const operation=getOperation(g.operation?.id),isOperation=['operation','operation-result'].includes(c.stage);
   check(isOperation ? operation&&g.operation.version===1&&g.operation.kind===operation.kind&&g.operation.chapter===operation.chapter&&integer(g.operation.round,0,operation.waves-1)&&typeof g.operation.waiting==='boolean'&&operation.chapter<=c.chapter : g.operation===undefined||g.operation===null,'외해 작전을 복원할 수 없습니다.');
   if(isOperation)check(g.operation.defenseVersion===undefined||(operation.kind==='defense'&&[1,2].includes(g.operation.defenseVersion)),'방어 공세 버전이 올바르지 않습니다.');
+  if(isOperation)check(g.operation.siegeVersion===undefined||(operation.kind==='siege'&&[1,2].includes(g.operation.siegeVersion)),'기지 공략 편대 버전이 올바르지 않습니다.');
   if(c.frontier!==undefined) {
     const f=c.frontier;check(f?.version===1&&Array.isArray(f.cleared)&&f.cleared.length<=frontierOperations.length&&new Set(f.cleared).size===f.cleared.length&&f.cleared.every(id=>getOperation(id)&&getOperation(id).chapter<=c.chapter&&(!getOperation(id).endgame||c.completed.length===missions.length))&&finite(f.totalSeconds),'외해 진행이 올바르지 않습니다.');
     check(f.records&&Object.keys(f.records).every(id=>f.cleared.includes(id)&&finite(f.records[id].seconds)&&integer(f.records[id].score,0,100)&&integer(f.records[id].standing,0,160)&&integer(f.records[id].kills,0,10000)),'방어 작전 기록이 올바르지 않습니다.');
@@ -160,17 +161,21 @@ export function validateCampaign(g) {
   check(c.stage === 'harbor' || !!g.checkpoint, '출항 전 복구 상태가 없습니다.');
   return true;
 }
+// An old engine must not silently replace a new dock's pursuit tactics even
+// when the save is taken before its first enemies spawn. Other saves keep v1.
+const requiredSaveVersion=g=>g.operation?.siegeVersion===2||g.enemies.some(e=>e.type==='raider')?2:1;
 export function encodeSave(g) {
   validateCampaign(g);
   const payload = JSON.parse(JSON.stringify({ ...g, events: [], accumulator: 0 }));
   const serialized = JSON.stringify(payload);
-  return JSON.stringify({ format: 'tidehold-campaign', version: 1, savedAt: new Date().toISOString(), checksum: checksum(serialized), payload });
+  return JSON.stringify({ format: 'tidehold-campaign', version: requiredSaveVersion(g), savedAt: new Date().toISOString(), checksum: checksum(serialized), payload });
 }
 export function decodeSave(text) {
   check(typeof text === 'string' && text.length <= 1000000, '저장 파일이 너무 큽니다.');
   const envelope = JSON.parse(text);
-  check(envelope.format === 'tidehold-campaign' && envelope.version === 1 && checksum(JSON.stringify(envelope.payload)) === envelope.checksum, '저장 파일이 손상되었거나 지원되지 않습니다.');
+  check(envelope.format === 'tidehold-campaign' && [1,2].includes(envelope.version) && checksum(JSON.stringify(envelope.payload)) === envelope.checksum, '저장 파일이 손상되었거나 지원되지 않습니다.');
   const g = envelope.payload; validateCampaign(g);
+  check(envelope.version===requiredSaveVersion(g),'측면 추적 편대를 포함한 저장 형식이 올바르지 않습니다. 최신 실행판에서 복원하세요.');
   migrateAtlas(g.campaign);
   migrateWalls(g);
   g.fleet ||= emptyFleet();if(g.checkpoint)g.checkpoint.fleet ||= emptyFleet();

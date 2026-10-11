@@ -14,7 +14,10 @@ import {basePower,getSiege} from '../../src/siege-content.js';
 async function saveReloadRollback(page,player,departure,prefix,expectedPower){
   // Freeze only the test clock while exercising the real export button. The
   // game's pause dialog intentionally blocks controls behind it.
-  await page.clock.pauseAt(new Date(await page.evaluate(()=>Date.now())+100));
+  // Date reading and clock pausing cross separate browser round trips.
+  // Leave a generous margin under concurrent model/native validation, then
+  // capture the actual paused state used by all export/reload assertions.
+  await page.clock.pauseAt(new Date(await page.evaluate(()=>Date.now())+60000));
   const g=await player.state();
   await player.tab('campaign');const [download]=await Promise.all([page.waitForEvent('download'),page.locator('#export-save').click()]);await download.saveAs(`artifacts/${prefix}-active-save.json`);
   const exported=decodeSave(await fs.readFile(`artifacts/${prefix}-active-save.json`,'utf8'));expect(canonicalSavedValue(exported.enemies)).toEqual(canonicalSavedValue(g.enemies));expect(exported.fleet.groups).toEqual(g.fleet.groups);

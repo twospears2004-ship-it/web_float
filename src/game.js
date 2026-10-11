@@ -5,7 +5,7 @@ import { closestHullPoint, hullDistance, separateFromHull } from './hull.js';
 import {onSailed,salvageBonus} from './production.js';
 import {tickFleet,threatenedUnit} from './fleet.js';
 import {fleetProtector} from './fleet-protection.js';
-import {steerEnemy,enemyProtector,enemyRepairRate,repairsEnemy,enemyReinforcement} from './enemy-ai.js';
+import {steerEnemy,raiderTarget,enemyProtector,enemyRepairRate,repairsEnemy,enemyReinforcement} from './enemy-ai.js';
 import {structureHull,defenseTarget} from './fortifications.js';
 import {structurePosition,validWallSlot,wallEdge} from './walls.js';
 import {afterDefenseTick} from './frontier.js';
@@ -244,7 +244,7 @@ function tick(g, dt, input) {
     if (e.hp <= 0 || !e.active || e.captured) continue;
     const stats = enemyStats(g, e);
     const baseTarget = g.operation?.kind==='defense'?defenseTarget(g,e):g.campaign && (g.campaign.expeditionVersion===2 ? g.campaign.allyPosition : g.campaign.allyHull>0&&g.campaign.missionId?.endsWith('-3') ? sitesFor(g)[0] : null) || g.island;
-    const target=threatenedUnit(g,e,baseTarget,stats);
+    const target=raiderTarget(g,e,baseTarget,stats)||threatenedUnit(g,e,baseTarget,stats);
     const shipTarget=physicalHull && target===g.island;
     let contact=shipTarget?closestHullPoint(g,e):target;
     let d = shipTarget?contact.distance:distance(e,target);

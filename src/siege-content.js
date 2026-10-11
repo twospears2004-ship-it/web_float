@@ -86,7 +86,7 @@ export function spawnSiegeBase(g,d) {
   const combatChapter=d.combatChapter??d.chapter,combatRank=d.combatRank??d.rank;
   const guards=['crawler',combatChapter>=1?'skimmer':'crawler',...(combatChapter>=2?['armored']:[]),...(combatChapter>=3?['tender']:[]),...(combatChapter>=5?['spitter']:[]),...(combatChapter>=7?['carrier']:[])];
   const rotation=d.endgame?endgameLayouts[d.chapter].rotation:0;
-  guards.forEach((_,i)=>add(guards[(i+rotation)%guards.length],(i%2?1:-1)*(18+Math.floor(i/2)*3),17-Math.floor(i/2)*5));
+  guards.forEach((_,i)=>{const type=guards[(i+rotation)%guards.length],raider=d.pattern==='citadel'&&g.operation.siegeVersion===2&&['skimmer','spitter'].includes(type);add(raider?'raider':type,(i%2?1:-1)*(18+Math.floor(i/2)*3),17-Math.floor(i/2)*5);});
   const scale=(1+combatChapter*0.7)**1.35*(1+combatRank*0.18+g.operation.round*0.12);
   return layout.map((p,i)=>{
     const stats=campaignRules.enemies[p.type],hp=Math.round(stats.hp*scale),sin=Math.sin(site.angle),cos=Math.cos(site.angle);

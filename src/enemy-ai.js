@@ -4,6 +4,19 @@ export const enemySupportRadius=17;
 export const enemyProtectionRadius=14;
 export const enemyReinforcementLimit=3;
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
+export function raiderTarget(g,e,base,stats){
+  if(e.type!=='raider'||!g.campaign||e.hp<=0||!e.active||e.captured)return null;
+  const baseDistance=base===g.island?closestHullPoint(g,e).distance:distance(e,base),priority=u=>u.type==='tender'?0:1;
+  // Local perception, not whole-map knowledge. A very close island/structure
+  // still draws the attack; wounded supports win stable ties within the role.
+  return (g.fleet?.units||[]).filter(u=>u.hp>0&&['tender','ward'].includes(u.type)&&distance(e,u)<=stats.range+14&&distance(e,u)<baseDistance+12)
+    .sort((a,b)=>priority(a)-priority(b)||a.hp/a.maxHp-b.hp/b.maxHp||distance(e,a)-distance(e,b)||a.id-b.id)[0]||null;
+}
+export function raiderFlank(g,e,target){
+  if(e.type!=='raider'||!(g.fleet?.units||[]).includes(target)||target.hp<=0)return null;
+  const side=[...String(e.id)].reduce((n,c)=>n+c.charCodeAt(0),0)%2?1:-1,heading=target.heading||0;
+  return {x:target.x+Math.cos(heading)*7*side,z:target.z-Math.sin(heading)*7*side};
+}
 export const enemyRepairRate=(g,stats)=>(stats.repair||0)*(1+(g.campaign?.chapter||0)*0.25);
 export function repairsEnemy(source,enemy) {
   if(source===enemy||source.hp<=0||!source.active||source.captured||enemy.hp<=0||enemy.captured||enemy.hp>=enemy.maxHp||distance(source,enemy)>=enemySupportRadius)return false;
@@ -46,10 +59,10 @@ export function steerEnemy(g,e,target,stats,dt,physicalHull,worldLimit) {
   // or changing movement speed. Fast attackers can still leave this bubble.
   const wd=ward?distance(ward,target):0;
   const shieldPoint=ward?{x:ward.x+(wd>1e-9?(target.x-ward.x)/wd:1)*6,z:ward.z+(wd>1e-9?(target.z-ward.z)/wd:0)*6}:null;
-  const goal=shieldPoint||ally||target;
+  const flank=raiderFlank(g,e,target),goal=shieldPoint||ally||flank||target;
   const contact=physicalHull&&goal===g.island?closestHullPoint(g,e):goal;
   const d=distance(e,contact),minimum=ally||ward?0:stats.standoff||0;
-  const stop=ward?0.5:ally?enemySupportRadius-4:Math.max(0,stats.range-0.5);
+  const stop=ward||flank?0.5:ally?enemySupportRadius-4:Math.max(0,stats.range-0.5);
   const retreat=d<minimum;
   if(!retreat&&d<=stop)return;
   const gap=retreat?minimum-d:d-stop,step=Math.min(stats.speed*dt,gap);

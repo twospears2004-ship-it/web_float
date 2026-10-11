@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {visibleProjection} from './fleet-selection.js';
-import { balance, facilityPosition, weaponStats, keyOf, expansionSlots, sitesFor } from './game.js';
+import { balance, facilityPosition, weaponStats, enemyStats, keyOf, expansionSlots, sitesFor } from './game.js';
 import {wallEdges,wallEdge} from './walls.js';
 import { getChapter, getMission } from './campaign-content.js';
 import {structureHull} from './fortifications.js';
@@ -8,7 +8,7 @@ import {fixedEnemyRadius,basePower,powerConnections} from './siege-content.js';
 import { material, tileModel, coreModel, facilityModel, unitModel, enemyModel, animateBoss, decorationModel, terrainModel } from './models.js';
 import {TileBatch} from './tile-batch.js';
 import {inspectedContact} from './combat-inspector.js';
-import {enemyProtectionRadius} from './enemy-ai.js';
+import {enemyProtectionRadius,raiderTarget} from './enemy-ai.js';
 import {unitStats} from './fleet.js';
 const oceanColor=new THREE.Color(0x276a84);
 
@@ -126,11 +126,15 @@ export class GameView {
     const r=this.renderer.domElement.getBoundingClientRect();this.mouse.set((clientX-r.left)/r.width*2-1,-(clientY-r.top)/r.height*2+1);this.raycaster.setFromCamera(this.mouse,this.camera);
     const point=this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),0),new THREE.Vector3());return point?{x:point.x,z:point.z}:null;
   }
-  pickCombat(clientX,clientY) {
+  pickCombat(clientX,clientY,afterEnemy=null) {
     this.pointAt(clientX,clientY);
     const hits=this.raycaster.intersectObjects([...this.units.values(),...this.enemies.values()],true);
-    for(const hit of hits){let obj=hit.object;while(obj){if(obj.userData.unit!==undefined)return {unit:obj.userData.unit};if(obj.userData.enemy!==undefined)return {enemy:obj.userData.enemy};obj=obj.parent;}}
-    return null;
+    const contacts=[];
+    for(const hit of hits){let obj=hit.object;while(obj){const contact=obj.userData.unit!==undefined?{unit:obj.userData.unit}:obj.userData.enemy!==undefined?{enemy:obj.userData.enemy}:null;if(contact){if(!contacts.some(c=>c.unit===contact.unit&&c.enemy===contact.enemy))contacts.push(contact);break;}obj=obj.parent;}}
+    // Repeated inspection reaches bodies hidden behind other enemies. Fresh
+    // selection and right-click commands still use the nearest visible body.
+    const enemies=contacts.filter(c=>c.enemy!==undefined),index=enemies.findIndex(c=>c.enemy===afterEnemy);
+    return contacts[0]?.enemy!==undefined&&index>=0&&enemies.length>1?enemies[(index+1)%enemies.length]:contacts[0]||null;
   }
   reset() {
     this.tileBatch.clear();
@@ -228,7 +232,7 @@ export class GameView {
       if (e.hp <= 0) { if (mesh) { this.release(mesh); this.enemies.delete(e.id); } if (bar) { this.release(bar); this.bars.delete(e.id); } continue; }
       if (!mesh) { mesh = enemyModel(e.type, g.campaign ? getChapter(g).id : null, Number(e.id.split('-').at(-1)) || 0);mesh.userData.enemy=e.id; this.enemies.set(e.id, mesh); this.scene.add(mesh); bar = this.healthBar(e); this.bars.set(e.id, bar); }
       mesh.position.set(e.x, fixedEnemyRadius(e)>0 ? 0 : Math.sin(g.time * 3 + e.x) * 0.16, e.z);
-      if (e.active) {const closest=(g.fleet?.units || []).filter(u=>u.hp>0).sort((a,b)=>Math.hypot(a.x-e.x,a.z-e.z)-Math.hypot(b.x-e.x,b.z-e.z))[0],target=closest||g.island,angle=Math.atan2(target.x-e.x,target.z-e.z);if(mesh.userData.turret)mesh.userData.turret.rotation.y=angle;else if(!fixedEnemyRadius(e))mesh.rotation.y=angle;}
+      if (e.active) {const closest=(g.fleet?.units || []).filter(u=>u.hp>0).sort((a,b)=>Math.hypot(a.x-e.x,a.z-e.z)-Math.hypot(b.x-e.x,b.z-e.z))[0],target=(e.type==='raider'?raiderTarget(g,e,g.island,enemyStats(g,e)):null)||closest||g.island,angle=Math.atan2(target.x-e.x,target.z-e.z);if(mesh.userData.turret)mesh.userData.turret.rotation.y=angle;else if(!fixedEnemyRadius(e))mesh.rotation.y=angle;}
       if(mesh.userData.powerIndicator){const light=mesh.userData.powerIndicator,powered=e.type==='generator'||basePower(g,e)>0;light.visible=!e.captured;light.material.color.setHex(powered?0x97dccc:0x9b7771);light.material.emissiveIntensity=powered?0.7+Math.sin(g.time*3)*0.2:0;}
       animateBoss(mesh,g.time,e.bossPhase,!!e.windup);
       bar.position.set(e.x, mesh.userData.barHeight || mesh.userData.boss?.height || (e.type === 'leviathan' ? 4.5 : e.type === 'nest' ? 4 : 2.4), e.z); bar.quaternion.copy(this.camera.quaternion);

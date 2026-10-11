@@ -31,6 +31,7 @@ export function launchDefense(g,id) {
   g.fleet ||= emptyFleet();g.checkpoint=captureShip(g);c.frontier ||= frontierState();
   g.operation={version:1,id,kind:def.kind,chapter:def.chapter,round:0,waiting:true,result:null};
   if(def.kind==='defense')g.operation.defenseVersion=2;
+  if(def.kind==='siege'&&def.pattern==='citadel')g.operation.siegeVersion=2;
   if(def.kind==='explore'){const chart=atlasChart(c,id),recorded=!!c.atlas?.charts[id]||!!c.frontier.records[id];Object.assign(g.operation,{layoutVersion:recorded?chart.layoutVersion||1:2,visible:[...chart.seen],scan:0});}
   const catalog=operationSites(id,g.operation.layoutVersion);
   Object.assign(g,{island:{x:0,z:0},heading:0,route:null,combat:false,enemies:[],catalog,sites:catalog.map(s=>({id:s.id,cleared:false})),events:[],accumulator:0});

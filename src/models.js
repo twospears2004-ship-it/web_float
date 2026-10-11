@@ -184,6 +184,10 @@ export function enemyModel(type, bossVariant = null, twinIndex = 0) {
     part(g, new THREE.IcosahedronGeometry(1), palette.teal, 0, 0.45).scale.set(0.6, 0.4, 1.9);
     for (const side of [-1,1]) { const fin = part(g, new THREE.ConeGeometry(1, 0.18, 3), palette.pale, side * 1, 0.35, -0.4); fin.rotation.y = side * 0.3; }
     for (const x of [-0.26, 0.26]) part(g, new THREE.SphereGeometry(0.12, 5, 4), palette.brass, x, 0.55, 1.45);
+  } else if (type === 'raider') {
+    part(g,new THREE.IcosahedronGeometry(1),palette.red,0,0.5).scale.set(0.7,0.5,1.65);
+    for(const side of [-1,1]){const claw=part(g,new THREE.ConeGeometry(0.48,2.6,3),palette.brass,side*0.8,0.4,0.35);claw.rotation.x=Math.PI/2;claw.rotation.z=side*0.25;part(g,new THREE.OctahedronGeometry(0.18),palette.pale,side*0.24,0.7,1.2);}
+    part(g,new THREE.ConeGeometry(0.65,1.2,3),palette.dark,0,0.9,-0.5);
   } else if (type === 'spitter') {
     part(g, new THREE.DodecahedronGeometry(1.2), palette.teal, 0, 0.25).scale.set(1, 0.6, 1.2);
     cylinder(g, 0.3, 0.6, 1.8, palette.red, 0, 1.1, 0.1);
