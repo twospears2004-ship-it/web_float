@@ -1,6 +1,7 @@
 import {fleetRules,unitTypes,unitRefits} from './fleet-content.js';
 import {waterPoint,waterPath,navigable,clearLine} from './navigation.js';
 import {hullDistance} from './hull.js';
+import {automaticFleetTarget} from './fleet-targeting.js';
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z),emit=(g,e)=>{g.events.push(e);if(g.events.length>180)g.events.shift();};
 export const emptyFleet=()=>({version:1,nextId:1,units:[]});
 export const controlGroupNumbers=[5,6,7,8,9];
@@ -73,7 +74,7 @@ export function refitUnit(g,id,refit) {
   // Keep damage ratio, cooldown, movement orders and formation. Switching roles
   // cannot repair a ship, refund equipment or reset a weapon's firing timer.
   const ratio=u.hp/u.maxHp;g.resources-=state.cost;
-  if(refit==='standard')delete u.refit;else {u.refit=refit;g.fleet.version=2;}
+  if(refit==='standard')delete u.refit;else {u.refit=refit;g.fleet.version=Math.max(2,g.fleet.version);}
   u.maxHp=state.next.hp;u.hp=u.maxHp*ratio;
   g.message=`${unitTypes[u.type].name} #${u.id}: ${state.name} 개장. 손상 비율을 유지했습니다.`;return true;
 }
@@ -179,7 +180,7 @@ export function tickFleet(g,dt,damageEnemy,enemyStats) {
     const automatic=!g.campaign.waitingForDeparture && ['escort','hold','attackMove','guard'].includes(command.type);
     // Passive defense reacts to an existing engagement. Only a deliberate
     // attack or attack-move may open fire on an undiscovered opponent.
-    let target=command.type==='attack'?g.enemies.find(e=>e.id===command.target&&e.hp>0&&!e.captured):automatic?g.enemies.filter(e=>e.hp>0&&!e.captured&&(e.active||command.type==='attackMove')&&dist(u,e)<=stats.range+(['hold','guard'].includes(command.type)?0:9)).sort((a,b)=>(['bomber','tender','carrier'].includes(a.type)?0:1)-(['bomber','tender','carrier'].includes(b.type)?0:1)||dist(u,a)-dist(u,b))[0]:null;
+    let target=command.type==='attack'?g.enemies.find(e=>e.id===command.target&&e.hp>0&&!e.captured):automatic?automaticFleetTarget(g,u,stats,enemyStats):null;
     if(stats.heal) {
       const candidates=living.filter(other=>other.hp<other.maxHp&&dist(u,other)<=stats.range);
       if(g.hull<g.maxHull&&hullDistance(g,u)<=stats.range)candidates.push({ship:true,hp:g.hull,maxHp:g.maxHull});

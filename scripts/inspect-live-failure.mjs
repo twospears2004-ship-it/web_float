@@ -8,6 +8,8 @@ import {pathToFileURL} from 'node:url';
 import assert from 'node:assert/strict';
 const output=path.resolve(process.argv[2]),artifacts=path.resolve('artifacts'),relative=path.relative(artifacts,output);
 assert(relative&&!relative.startsWith('..')&&!path.isAbsolute(relative));
+const label=process.argv.find(a=>a.startsWith('--label='))?.slice(8)||'';
+assert(!label||/^[a-z0-9-]{1,64}$/.test(label),'Inspection label must be a simple filename slug.');const prefix=label?`${label}-`:'';
 const prior=JSON.parse(await fs.readFile(path.join(output,'live-audit.json'),'utf8'));assert(['failed','stopped','limited'].includes(prior.status));
 assert.equal(path.resolve(prior.runtime.profile),path.join(output,'browser-profile'));
 const save=await import(pathToFileURL(path.join(output,'frozen-game/src/save.js')).href);
@@ -19,8 +21,8 @@ try{
   browser=await chromium.launchPersistentContext(prior.runtime.profile,{channel:'chrome',headless:true,viewport:{width:1440,height:900},args:['--mute-audio']});
   const page=browser.pages()[0]||await browser.newPage();await page.goto(prior.runtime.url,{waitUntil:'domcontentloaded'});await page.locator('#continue-button').click();
   const g=await page.evaluate(()=>window.__TIDEHOLD__.snapshot());assert(g.paused||g.phase!=='playing','Inspection requires an already paused or completed save.');
-  const encoded=save.encodeSave(g);save.decodeSave(encoded);await fs.writeFile(path.join(output,'failure-state-own-profile.json'),encoded);
+  const encoded=save.encodeSave(g);save.decodeSave(encoded);await fs.writeFile(path.join(output,`${prefix}failure-state-own-profile.json`),encoded);
   const enemy=g.enemies.find(e=>prior.failure?.includes(e.id)),points=enemy?await page.evaluate(e=>[.6,1.5,2.5,4,6].map(y=>({y,...window.__TIDEHOLD__.projectWorld({...e,y})})),enemy):[];
   const report={sourceHash:prior.runtime.sourceHash,priorObservation:prior.current,state:{id:g.operation?.id||g.campaign.missionId,phase:g.phase,paused:g.paused,seconds:g.campaign.missionSeconds,resources:g.resources,island:g.island},target:enemy,points,canvas:await page.locator('#scene canvas').boundingBox(),selection:await page.evaluate(()=>window.__TIDEHOLD__.selection()),units:g.fleet.units.map(u=>({id:u.id,type:u.type,hp:u.hp,x:u.x,z:u.z,command:u.command}))};
-  await fs.writeFile(path.join(output,'failure-inspection.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
+  await fs.writeFile(path.join(output,`${prefix}failure-inspection.json`),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
 }finally{if(browser)await browser.close();if(server&&!exited)server.kill();}

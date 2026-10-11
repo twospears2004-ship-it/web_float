@@ -140,10 +140,14 @@ export function livePlayer(page,rules){
       const p=await page.evaluate(p=>window.__TIDEHOLD__.projectWorld(p),{...current,y});const canvas=await page.locator('#scene canvas').boundingBox();
       if(p.x<=canvas.x||p.x>=canvas.x+canvas.width||p.y<=canvas.y||p.y>=canvas.y+canvas.height)continue;
       await page.mouse.click(p.x,p.y,{button:'right'});g=await state();if(!canCommand(g))return false;
+      // Actual combat continues while the rendered pointer is in flight. A
+      // slain or captured target is no longer available, even on the last try.
+      if(type==='attack'&&!g.enemies.some(e=>e.id===target.id&&e.hp>0&&!e.captured))return false;
       const living=ids.filter(id=>g.fleet.units.some(u=>u.id===id&&u.hp>0));if(!living.length)return false;
       if(living.every(id=>{const c=g.fleet.units.find(u=>u.id===id).command;return c?.type===type&&(type!=='attack'||c.target===target.id);}))return true;
     }
-    g=await state();throw new Error(`Rendered pointer could not issue ${type} to ${target.id||'water'}: ${JSON.stringify({target:g.enemies.find(e=>e.id===target.id),units:g.fleet.units.filter(u=>ids.includes(u.id)).map(u=>({id:u.id,hp:u.hp,command:u.command}))})}`);
+    g=await state();if(!canCommand(g)||type==='attack'&&!g.enemies.some(e=>e.id===target.id&&e.hp>0&&!e.captured))return false;
+    throw new Error(`Rendered pointer could not issue ${type} to ${target.id||'water'}: ${JSON.stringify({target:g.enemies.find(e=>e.id===target.id),units:g.fleet.units.filter(u=>ids.includes(u.id)).map(u=>({id:u.id,hp:u.hp,command:u.command}))})}`);
   }
   async function recall(){
     const g=await state();if(!canCommand(g))return false;if(g.fleet.units.some(u=>u.hp>0)){
