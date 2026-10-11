@@ -1,5 +1,6 @@
 import { campaignRules, chapters, missions, getMission, missionSites, technologies, abilityDefinitions, bossPatterns, bossTactics } from './campaign-content.js';
 import {coolingStats} from './field-control.js';
+import {applyEnemySlow,tickEnemySlow} from './enemy-control.js';
 import { fieldDecisions } from './expedition-content.js';
 import { separateFromHull } from './hull.js';
 import {onSiteSecured,resetProductionForMission} from './production.js';
@@ -162,7 +163,7 @@ export function useAbility(g, id) {
     for (const e of g.enemies) if (e.hp > 0 && !e.captured && dist(e, g.island) <= def.range) {
       // Damage is applied by the shared game damage pipeline next tick.
       e.pendingDamage = (e.pendingDamage || 0) + def.damage * (1 + (c.tech.ballistics || 0) * 0.12) * (1+(c.expeditionVersion===2?c.chapter*0.28:0));
-      e.slowSeconds = 4; e.slowFactor = 0.3; e.active = true;
+      applyEnemySlow(e,'pulse',4,.3);e.active = true;
     }
     event(g, { type: 'pulse', ...g.island, radius:def.range });
   }
@@ -290,13 +291,13 @@ export function beforeCampaignTick(g, dt) {
   for (const key of Object.keys(c.abilityCooldowns)) c.abilityCooldowns[key] = Math.max(0, c.abilityCooldowns[key] - dt);
   c.barrierSeconds = Math.max(0, c.barrierSeconds - dt);
   c.braceSeconds=Math.max(0,(c.braceSeconds || 0)-dt);
-  if(c.stage==='operation'){for(const e of g.enemies)e.slowSeconds=Math.max(0,(e.slowSeconds || 0)-dt);return;}
+  if(c.stage==='operation'){for(const e of g.enemies)tickEnemySlow(e,dt);return;}
   if (c.stage !== 'mission') return;
   c.slowSeconds=Math.max(0,(c.slowSeconds || 0)-dt);
   c.darknessSeconds=Math.max(0,(c.darknessSeconds || 0)-dt);
   const m = getMission(c.missionId);
   for (const e of g.enemies) {
-    e.slowSeconds = Math.max(0, (e.slowSeconds || 0) - dt);
+    tickEnemySlow(e,dt);
     if (e.type === 'leviathan' && e.hp < e.maxHp / 2 && e.bossPhase === 1) { e.bossPhase = 2; g.message = '수호자가 격노합니다! 공격 예고를 확인하세요.'; event(g, { type: 'bossPhase', x: e.x, z: e.z }); }
   }
   c.hazardTimer -= dt;

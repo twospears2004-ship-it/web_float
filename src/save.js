@@ -9,6 +9,8 @@ import {getExploration,explorationSites,explorations} from './exploration-conten
 import {getOperation,operationSites,frontierOperations} from './frontier-content.js';
 import {structureHull} from './fortifications.js';
 import {wallEdges,wallKey,wallEdge,migrateWalls} from './walls.js';
+import {validEnemySlows} from './enemy-control.js';
+import {coolingStats} from './field-control.js';
 
 export const SAVE_KEY = 'tidehold.campaign.v1';
 export const BACKUP_KEY = 'tidehold.campaign.v1.backup';
@@ -153,6 +155,7 @@ export function validateCampaign(g) {
     check(position(e) && finite(e.maxHp, 1, 1000000) && finite(e.hp, 0, e.maxHp) && typeof e.active === 'boolean' && typeof e.rewarded === 'boolean' && finite(e.cooldown, 0, 10), '적의 전투 상태가 올바르지 않습니다.');
     check(e.rewarded === (e.hp===0), '적의 생존과 보상 상태가 일치하지 않습니다.');
     check(finite(e.slowSeconds, 0, 4) && finite(e.slowFactor, 0, 1) && [1,2].includes(e.bossPhase), '적의 능력 상태가 올바르지 않습니다.');
+    check(validEnemySlows(e,coolingStats(c.tech.cryodynamics||0).frostSlow),'적의 둔화 중첩과 남은 시간이 올바르지 않습니다.');
     check(!e.windup || (position(e.windup) && finite(e.windup.radius, 1, 20) && finite(e.windup.remaining, 0, 3) && Array.isArray(e.windup.zones) && e.windup.zones.length<=5 && e.windup.zones.every(z=>position(z)&&finite(z.radius,1,20))), '공격 예고가 올바르지 않습니다.');
     check(!e.pendingDamage || finite(e.pendingDamage, 0, 10000), '파동 피해 상태가 올바르지 않습니다.');
     check((e.spawnCount===undefined || integer(e.spawnCount,0,3)) && (e.spawnTimer===undefined || finite(e.spawnTimer,0,12)),'적의 증원 상태가 올바르지 않습니다.');
@@ -165,7 +168,7 @@ export function validateCampaign(g) {
 }
 // Old engines must refuse new control research or pursuit tactics instead of
 // silently discarding them. Unresearched saves retain their former envelope.
-const requiredSaveVersion=g=>Object.hasOwn(g.campaign.tech,'cryodynamics')?3:g.operation?.siegeVersion===2||g.enemies.some(e=>e.type==='raider')?2:1;
+const requiredSaveVersion=g=>g.enemies.some(e=>Object.hasOwn(e,'controlSlows'))?4:Object.hasOwn(g.campaign.tech,'cryodynamics')?3:g.operation?.siegeVersion===2||g.enemies.some(e=>e.type==='raider')?2:1;
 export function encodeSave(g) {
   validateCampaign(g);
   const payload = JSON.parse(JSON.stringify({ ...g, events: [], accumulator: 0 }));
@@ -175,7 +178,7 @@ export function encodeSave(g) {
 export function decodeSave(text) {
   check(typeof text === 'string' && text.length <= 1000000, '저장 파일이 너무 큽니다.');
   const envelope = JSON.parse(text);
-  check(envelope.format === 'tidehold-campaign' && [1,2,3].includes(envelope.version) && checksum(JSON.stringify(envelope.payload)) === envelope.checksum, '저장 파일이 손상되었거나 지원되지 않습니다.');
+  check(envelope.format === 'tidehold-campaign' && [1,2,3,4].includes(envelope.version) && checksum(JSON.stringify(envelope.payload)) === envelope.checksum, '저장 파일이 손상되었거나 지원되지 않습니다.');
   const g = envelope.payload; validateCampaign(g);
   check(envelope.version===requiredSaveVersion(g),'연구·편대 기능에 필요한 저장 형식이 올바르지 않습니다. 최신 실행판에서 복원하세요.');
   migrateAtlas(g.campaign);

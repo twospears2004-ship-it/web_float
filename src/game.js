@@ -2,6 +2,7 @@
 import balance from './balance.json' with { type: 'json' };
 import { campaignRules } from './campaign-content.js';
 import {coolingStats} from './field-control.js';
+import {applyEnemySlow} from './enemy-control.js';
 import { closestHullPoint, hullDistance, separateFromHull } from './hull.js';
 import {onSailed,salvageBonus} from './production.js';
 import {tickFleet,threatenedUnit} from './fleet.js';
@@ -314,7 +315,7 @@ function tick(g, dt, input) {
     for (const e of g.enemies) if (e === target || (stats.splash > 0 && distance(e, center) <= stats.splash)) {
       const armor = g.campaign ? enemyStats(g, e).armor || 0 : 0;
       damageEnemy(g, e, stats.damage * (1 - armor * (1 - (stats.pierce || 0))));
-      if (stats.slow) { e.slowSeconds = 3; e.slowFactor = stats.slow; }
+      if (stats.slow) applyEnemySlow(e,'frost',3,stats.slow);
     }
     if(f.type==='mine'){f.hp=0;emit(g,{type:'kill',...pos,reward:0});g.message='기뢰가 접근한 공세를 폭파했습니다. 정비 중 재무장하세요.';}
   }
