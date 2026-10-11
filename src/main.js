@@ -49,6 +49,7 @@ app.innerHTML = `
       <div class="sidebar-tabs"><button class="active" data-tab="build">섬 정비</button><button data-tab="voyage">해역 <span id="cleared-count">0/3</span></button><button data-tab="fleet" hidden>함대</button><button data-tab="campaign" hidden>캠페인</button><button data-tab="atlas" hidden>기록</button></div>
       <div id="build-panel" class="tab-panel">
         <div class="section-heading"><span class="eyebrow">BUILD & GROW</span><h2>다음 항해를 준비하세요</h2><p>무장 · 생산 · 연구로 섬을 키우세요.</p></div>
+        <section id="refit-summary" class="refit-summary" hidden aria-labelledby="refit-title"><h3 id="refit-title">정비할 시설</h3><p id="refit-count"></p><div id="refit-list"></div><small>시설을 선택한 뒤 복구·수확 버튼을 눌러 진행하세요. 시설 복구는 섬 내구도 수리와 별개입니다.</small></section>
         <div class="build-actions">
           <button class="build-card" data-tool="cannon"><span class="facility-icon cannon">↗</span><span><strong>연사포</strong><small>빠른 단일 공격</small></span><em>◆ 65</em></button>
           <button class="build-card" data-tool="mortar"><span class="facility-icon mortar">◉</span><span><strong>박격포</strong><small>느린 범위 공격</small></span><em>◆ 100</em></button>
@@ -62,7 +63,7 @@ app.innerHTML = `
         </div>
         <button id="board-toggle" class="design-toggle" aria-expanded="false" aria-controls="placement-panel">배치도로 시설 선택</button>
         <div id="placement-panel" hidden><div class="board-heading"><strong id="placement-label">건설 타일 선택</strong><button id="cancel-tool" class="text-button">취소 Esc</button></div><div id="wall-side-picker" hidden><span>타일을 클릭할 때 설치할 면</span><div>${Object.entries(wallEdges).map(([edge,s])=>`<button data-edge-choice="${edge}" aria-pressed="false">${s.name}</button>`).join('')}</div></div><div id="tile-board" class="tile-board" aria-label="섬 건설 배치도"></div><small class="board-help">위쪽이 북쪽 · 타일 안쪽은 시설, 테두리는 성벽입니다. 성벽은 같은 타일의 농장·포탑과 함께 건설할 수 있습니다.</small></div>
-        <div id="facility-panel" class="facility-panel"></div>
+        <div id="facility-panel" class="facility-panel" role="region" aria-label="선택한 시설 상세" tabindex="-1"></div>
         <div class="loop-guide"><span class="eyebrow">YOUR FIRST VOYAGE</span><ol><li><b>01</b><span>박격포를 건설하거나 연사포 강화</span></li><li><b>02</b><span>산호 여울에서 적을 처치</span></li><li><b>03</b><span>자원으로 섬 확장 · 다음 적에게</span></li></ol><button id="show-voyage" class="primary-button">탐험 항로 보기 <span>→</span></button></div>
       </div>
       <div id="voyage-panel" class="tab-panel" hidden>
@@ -233,6 +234,13 @@ $('facility-panel').addEventListener('click', e => {
   update(true); if (action) persist();
 });
 $('facility-panel').addEventListener('change',e=>{if(e.target.matches('[data-targeting]')){setTargeting(game,ui.selected,e.target.value);update(true);persist();}});
+$('refit-list').addEventListener('click',e=>{
+  const button=e.target.closest('[data-refit]');if(!button)return;
+  const facility=game.facilities.find(f=>f.id===Number(button.dataset.refit));if(!facility)return;
+  ui.selected=facility.id;ui.tool=null;ui.moving=null;showTab('build');update(true);
+  $('facility-panel').scrollIntoView({block:'nearest',behavior:'instant'});
+  $('facility-panel').focus({preventScroll:true});
+});
 $('field-choice').addEventListener('click',e=>{const id=e.target.closest('[data-field-choice]')?.dataset.fieldChoice;if(id&&resolveFieldDecision(game,id)){update(true);persist();}});
 $('show-route').addEventListener('change',()=>update(true));
 $('field-repair').addEventListener('click',()=>{repair(game);update(true);persist();});
@@ -547,6 +555,23 @@ function updateCampaign(force) {
     $('research-list').innerHTML = technologies.map(t => { const level = c.tech[t.id] || 0,cost=researchCost(game,t),locked=c.chapter<(t.unlock || 0),required=researchChartRequirement(c,t),chartLocked=chartCount<required; return `<button data-research="${t.id}" class="research-card" ${c.stage !== 'harbor' || game.paused || locked || chartLocked || level >= t.max || c.research < cost.points || game.resources<cost.materials ? 'disabled' : ''}><span><strong>${t.name} ${level}/${t.max}</strong><small>${t.description}</small></span><b>${locked ? `${chapters[t.unlock].name} 해금` : level >= t.max ? '완료' : chartLocked?`완성 해도 ${chartCount}/${required}`:`자료 ${cost.points}${cost.materials?` · 자원 ${cost.materials}`:''}`}</b></button>`; }).join('');
   }
 }
+let refitKey='';
+function updateRefitSummary(){
+  const items=game.campaign&&ui.started?game.facilities.filter(f=>structureRepairCost(f)>0||(['farm','fishery'].includes(f.type)&&f.stock>0)):[];
+  $('refit-summary').hidden=!items.length;
+  if(!items.length){refitKey='';return;}
+  const key=JSON.stringify(items.map(f=>[f.id,f.type,f.level,f.hp,f.stock,f.x,f.z,f.edge]));if(key===refitKey)return;refitKey=key;
+  const damaged=items.filter(f=>structureRepairCost(f)>0).length,stock=items.reduce((sum,f)=>sum+(['farm','fishery'].includes(f.type)?f.stock||0:0),0);
+  $('refit-count').textContent=`복구 필요 ${damaged}개 · 수확 가능 ◆ ${stock}`;
+  const buttons=new Map([...$('refit-list').children].map(button=>[Number(button.dataset.refit),button]));
+  const active=new Set(items.map(f=>f.id));for(const [id,button] of buttons)if(!active.has(id))button.remove();
+  for(const f of items){
+    let button=buttons.get(f.id);if(!button){button=document.createElement('button');button.dataset.refit=String(f.id);$('refit-list').append(button);}
+    const cost=structureRepairCost(f),ready=['farm','fishery'].includes(f.type)?f.stock||0:0;
+    const position=`${f.x},${f.z}${f.type==='wall'?` ${wallEdges[wallEdge(f)].name} 면`:''}`;
+    button.textContent=`${rulesFor(game).weapons[f.type].name} (${position}) · ${f.hp===0?'파괴 · ':''}${cost>0?`복구 ◆ ${cost}`:''}${cost>0&&ready>0?' · ':''}${ready>0?`수확 ◆ ${ready}`:''}`;
+  }
+}
 function updateFirstVoyage(){
   const c=game.campaign,visible=ui.started&&c&&c.completed.length<2&&!game.operation;
   $('first-voyage').hidden=!visible;if(!visible)return;
@@ -558,6 +583,7 @@ function updateFirstVoyage(){
   $('first-voyage-action').disabled=game.paused||game.phase!=='playing';
 }
 function update(force = false) {
+  updateRefitSummary();
   updateFirstVoyage();
   renderSites(); const rules = rulesFor(game), sites = sitesFor(game); updateCampaign(force);updateFleet();updateAtlas(force);
   $('resources').textContent = game.resources; $('hull-label').textContent = `${Math.ceil(game.hull)} / ${game.maxHull}`;

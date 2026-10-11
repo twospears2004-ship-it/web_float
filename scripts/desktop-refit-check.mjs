@@ -1,0 +1,31 @@
+import {_electron as electron,expect} from '@playwright/test';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {decodeSave,encodeSave} from '../src/save.js';
+import {structureHull,structureRepairCost} from '../src/fortifications.js';
+const pkg=JSON.parse(await fs.readFile('artifacts/desktop-package.json','utf8'));
+const profile=path.resolve('artifacts/desktop-profiles',`refit-${Date.now()}`);await fs.mkdir(profile,{recursive:true});
+const fixture=decodeSave(await fs.readFile('tests/fixtures/walls-legacy-coral-harbor.json','utf8'));
+const cannon=fixture.facilities[0],fishery=fixture.facilities.find(f=>f.type==='fishery');cannon.hp=structureHull(cannon)-75;fishery.stock=26;
+const fixtureFile=path.join(profile,'refit-validation.json');await fs.writeFile(fixtureFile,encodeSave(fixture));
+const env={...process.env,TIDEHOLD_TEST_MODE:'1',TIDEHOLD_PROFILE_DIR:profile};delete env.ELECTRON_RUN_AS_NODE;
+let app;const errors=[];const started=Date.now();
+try{
+  app=await electron.launch({executablePath:pkg.executable,args:[],env,timeout:60000});const page=await app.firstWindow();
+  page.on('pageerror',e=>errors.push(e.message));await page.waitForLoadState('domcontentloaded');
+  assert.equal(await page.evaluate(()=>!!window.__TIDEHOLD__),false);
+  assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isVisible()),false);
+  await page.locator('[data-start="destination"]').click();await page.locator('#save-file').setInputFiles(fixtureFile);
+  await page.locator('#resume-button').click();await page.locator('[data-tab="build"]').click();
+  await expect(page.locator('#refit-count')).toHaveText('복구 필요 1개 · 수확 가능 ◆ 26');
+  await page.screenshot({path:'artifacts/refit-native-overview.png'});
+  await page.locator(`[data-refit="${cannon.id}"]`).click();await expect(page.locator('#facility-panel')).toBeFocused();
+  await page.locator('[data-action="restore"]').click();await expect(page.locator(`[data-refit="${cannon.id}"]`)).toHaveCount(0);
+  await page.locator(`[data-refit="${fishery.id}"]`).click();await page.locator('[data-action="collect"]').click();await expect(page.locator('#refit-summary')).toBeHidden();
+  const ended=app.waitForEvent('close',{timeout:20000});await app.evaluate(({BrowserWindow})=>{setTimeout(()=>BrowserWindow.getAllWindows()[0].close(),10);});await ended;app=null;
+  const saved=decodeSave(await fs.readFile(path.join(profile,'saves/campaign.json'),'utf8'));
+  assert.equal(saved.resources,fixture.resources-structureRepairCost(cannon)+26);assert.equal(saved.facilities.find(f=>f.id===cannon.id).hp,structureHull(cannon));assert.equal(saved.facilities.find(f=>f.id===fishery.id).stock,0);assert.deepEqual(errors,[]);
+  const report={date:new Date().toISOString(),executable:pkg.executable,profile,gameBundle:pkg.gameBundle,realSeconds:(Date.now()-started)/1000,fixtureOnly:true,noDevHooks:true,noVirtualClock:true,resources:saved.resources,errors,passed:true};
+  await fs.writeFile('artifacts/refit-native.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));
+}finally{if(app)await app.close();}
