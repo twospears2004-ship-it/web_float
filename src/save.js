@@ -19,12 +19,15 @@ const finite = (n, min = 0, max = 1e8) => typeof n === 'number' && Number.isFini
 const integer = (n, min, max) => Number.isInteger(n) && finite(n, min, max);
 function checksum(text) { let h = 2166136261; for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619); return (h >>> 0).toString(16); }
 function position(p, bound = 180) { return p && finite(p.x, -bound, bound) && finite(p.z, -bound, bound); }
+const validExplorationLayout=(d,version)=>d?.endgame?version===3:version===undefined||[1,2].includes(version);
+const reconstructionReady=(c,d)=>!d?.endgame||d.kind!=='explore'||c.completed?.length===missions.length&&c.frontier?.cleared.includes(`explore-${d.id.split('-')[1]}-2`);
 function validateAtlas(c){
   if(c.atlas===undefined)return;
   const a=c.atlas;check(a?.version===1&&a.charts&&typeof a.charts==='object'&&!Array.isArray(a.charts)&&Object.keys(a.charts).length<=explorations.length,'항로 기록 형식이 올바르지 않습니다.');
   for(const [id,r]of Object.entries(a.charts)){
     const d=getExploration(id);check(d&&c.frontier?.cleared.includes(id)&&d.chapter<=c.chapter,'보관한 항로를 복원할 수 없습니다.');
-    check(r&&(r.layoutVersion===undefined||[1,2].includes(r.layoutVersion)),'보관한 탐험 지도 버전이 올바르지 않습니다.');
+    check(r&&validExplorationLayout(d,r.layoutVersion),'보관한 탐험 지도 버전이 올바르지 않습니다.');
+    check(reconstructionReady(c,d)&&(!d.endgame||r.legacySurveyed===0),'재건 탐험의 선행 항로 기록이 올바르지 않습니다.');
     const sites=explorationSites(d,r.layoutVersion||1),ids=new Set(sites.map(s=>s.id)),list=items=>Array.isArray(items)&&items.length<=8&&new Set(items).size===items.length&&items.every(v=>ids.has(v));
     check(r&&list(r.seen)&&r.seen.includes('explore-node-0')&&list(r.surveyed)&&sites.filter(s=>s.landmark).every(s=>r.surveyed.includes(s.id))&&r.surveyed.every(v=>r.seen.includes(v)),'보관한 조사 지점이 올바르지 않습니다.');
     check(integer(r.returns,1,100000)&&typeof r.fullRewarded==='boolean'&&integer(r.legacySurveyed,0,8)&&(r.legacySurveyed===0||r.legacySurveyed>=3)&&(!r.fullRewarded||r.surveyed.length===8||r.legacySurveyed>0)&&(r.surveyed.length<8||r.fullRewarded),'항로 귀환과 보상 기록이 올바르지 않습니다.');
@@ -97,6 +100,8 @@ export function validateCampaign(g) {
     check(Object.entries(f.records).every(([id,r])=>getOperation(id).kind!=='explore'||integer(r.surveyed,3,8)),'탐험 기록의 조사 수가 올바르지 않습니다.');
   }
   validateAtlas(c);
+  check((c.frontier?.cleared||[]).every(id=>{const d=getExploration(id);return reconstructionReady(c,d)&&(!d?.endgame||!!c.atlas?.charts[id]);}),'재건 탐험의 선행 항로 기록이 올바르지 않습니다.');
+  check(reconstructionReady(c,operation),'재건 탐험의 선행 항로 기록이 올바르지 않습니다.');
   const chartLevel=c.tech?.cartography||0;
   check(!chartLevel||atlasSummary(c).full>=(chartLevel===1?1:4),'항로 측량의 완성 해도가 부족합니다.');
   const coolingLevel=c.tech?.cryodynamics||0;
@@ -118,7 +123,7 @@ export function validateCampaign(g) {
   const mission = getMission(c.missionId);
   check(c.stage === 'harbor'||isOperation ? c.missionId === null : mission && (c.completed.includes(mission.id) || mission.index === c.completed.length), '현재 임무를 복원할 수 없습니다.');
   check(c.expeditionVersion===undefined || [1,2].includes(c.expeditionVersion),'지원하지 않는 원정 규칙입니다.');
-  check(g.operation?.layoutVersion===undefined||(operation?.kind==='explore'&&[1,2].includes(g.operation.layoutVersion)),'탐험 지도 버전이 올바르지 않습니다.');
+  check(operation?.kind==='explore'?validExplorationLayout(operation,g.operation.layoutVersion):g.operation?.layoutVersion===undefined,'탐험 지도 버전이 올바르지 않습니다.');
   const catalog = isOperation ? operationSites(operation.id,g.operation.layoutVersion||1):mission ? missionSites(mission,c.expeditionVersion) : [];
   if(operation?.kind==='explore'){
     const chart=c.atlas?.charts[operation.id];check(!chart||(chart.layoutVersion||1)===(g.operation.layoutVersion||1),'진행 중인 탐험과 보관한 지도 버전이 일치하지 않습니다.');
@@ -169,7 +174,8 @@ export function validateCampaign(g) {
 }
 // Old engines must refuse new control research or pursuit tactics instead of
 // silently discarding them. Unresearched saves retain their former envelope.
-const requiredSaveVersion=g=>g.fleet?.version===5||g.checkpoint?.fleet?.version===5?5:g.enemies.some(e=>Object.hasOwn(e,'controlSlows'))?4:Object.hasOwn(g.campaign.tech,'cryodynamics')?3:g.operation?.siegeVersion===2||g.enemies.some(e=>e.type==='raider')?2:1;
+const hasReconstruction=g=>getExploration(g.operation?.id)?.endgame||(g.campaign.frontier?.cleared||[]).some(id=>getExploration(id)?.endgame)||Object.keys(g.campaign.atlas?.charts||{}).some(id=>getExploration(id)?.endgame)||Object.keys(g.campaign.frontier?.records||{}).some(id=>getExploration(id)?.endgame);
+const requiredSaveVersion=g=>hasReconstruction(g)?6:g.fleet?.version===5||g.checkpoint?.fleet?.version===5?5:g.enemies.some(e=>Object.hasOwn(e,'controlSlows'))?4:Object.hasOwn(g.campaign.tech,'cryodynamics')?3:g.operation?.siegeVersion===2||g.enemies.some(e=>e.type==='raider')?2:1;
 export function encodeSave(g) {
   validateCampaign(g);
   const payload = JSON.parse(JSON.stringify({ ...g, events: [], accumulator: 0 }));
@@ -179,7 +185,7 @@ export function encodeSave(g) {
 export function decodeSave(text) {
   check(typeof text === 'string' && text.length <= 1000000, '저장 파일이 너무 큽니다.');
   const envelope = JSON.parse(text);
-  check(envelope.format === 'tidehold-campaign' && [1,2,3,4,5].includes(envelope.version) && checksum(JSON.stringify(envelope.payload)) === envelope.checksum, '저장 파일이 손상되었거나 지원되지 않습니다.');
+  check(envelope.format === 'tidehold-campaign' && [1,2,3,4,5,6].includes(envelope.version) && checksum(JSON.stringify(envelope.payload)) === envelope.checksum, '저장 파일이 손상되었거나 지원되지 않습니다.');
   const g = envelope.payload; validateCampaign(g);
   check(envelope.version===requiredSaveVersion(g),'연구·편대 기능에 필요한 저장 형식이 올바르지 않습니다. 최신 실행판에서 복원하세요.');
   migrateAtlas(g.campaign);

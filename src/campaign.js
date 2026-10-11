@@ -8,7 +8,7 @@ import {emptyFleet,deployFleet} from './fleet.js';
 import {shipFields,captureShip} from './ship-state.js';
 import {atlasState,atlasHasSurvey,atlasSummary,researchChartRequirement} from './atlas.js';
 import {getSiege} from './siege-content.js';
-import {explorationInterference} from './exploration-content.js';
+import {explorationInterference,getExploration} from './exploration-content.js';
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const event = (g, e) => { g.events.push(e); if (g.events.length > 180) g.events.shift(); };
@@ -103,7 +103,7 @@ export function spawnWave(g) {
 export function campaignEnemyStats(g, e) {
   const base = campaignRules.enemies[e.type];
   const m = getMission(g.campaign.missionId);
-  const chapter = getSiege(g.operation?.id)?.combatChapter ?? g.operation?.chapter ?? m?.chapter ?? 0;
+  const chapter = getSiege(g.operation?.id)?.combatChapter ?? getExploration(g.operation?.id)?.combatChapter ?? g.operation?.chapter ?? m?.chapter ?? 0;
   const expedition = g.campaign.expeditionVersion === 2;
   const interference=explorationInterference(g,e);
   return { ...base, name:e.type==='leviathan'?chapters[chapter].boss:base.name, pattern:bossPatterns[chapter],

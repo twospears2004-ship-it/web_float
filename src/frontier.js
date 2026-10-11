@@ -13,7 +13,7 @@ import {atlasChart} from './atlas.js';
 import {defenseWavePlan} from './defense-plans.js';
 const emit=(g,e)=>{g.events.push(e);if(g.events.length>180)g.events.shift();};
 export const frontierState=()=>({version:1,cleared:[],records:{},totalSeconds:0});
-export function availableExplorations(g){const c=g.campaign;return c?explorations.filter(d=>d.chapter<=c.chapter&&c.completed.length>0&&(d.rank===0||c.frontier?.cleared.includes(`explore-${d.id.split('-')[1]}-1`))):[];}
+export function availableExplorations(g){const c=g.campaign;return c?explorations.filter(d=>d.chapter<=c.chapter&&c.completed.length>0&&(!d.endgame||c.completed.length===missions.length)&&(d.rank===0||c.frontier?.cleared.includes(`explore-${d.id.split('-')[1]}-${d.endgame?2:1}`))):[];}
 export function availableDefenses(g) {
   const done=g.campaign.frontier?.cleared || [];
   return defenseContracts.filter(d=>d.chapter<=g.campaign.chapter && g.campaign.completed.length>0 && (d.rank===0 || done.includes(`defense-${d.id.split('-')[1]}-${d.rank}`)));
@@ -32,7 +32,7 @@ export function launchDefense(g,id) {
   g.operation={version:1,id,kind:def.kind,chapter:def.chapter,round:0,waiting:true,result:null};
   if(def.kind==='defense')g.operation.defenseVersion=2;
   if(def.kind==='siege'&&def.pattern==='citadel')g.operation.siegeVersion=2;
-  if(def.kind==='explore'){const chart=atlasChart(c,id),recorded=!!c.atlas?.charts[id]||!!c.frontier.records[id];Object.assign(g.operation,{layoutVersion:recorded?chart.layoutVersion||1:2,visible:[...chart.seen],scan:0});}
+  if(def.kind==='explore'){const chart=atlasChart(c,id),recorded=!!c.atlas?.charts[id]||!!c.frontier.records[id];Object.assign(g.operation,{layoutVersion:recorded?chart.layoutVersion||1:def.endgame?3:2,visible:[...chart.seen],scan:0});}
   const catalog=operationSites(id,g.operation.layoutVersion);
   Object.assign(g,{island:{x:0,z:0},heading:0,route:null,combat:false,enemies:[],catalog,sites:catalog.map(s=>({id:s.id,cleared:false})),events:[],accumulator:0});
   Object.assign(c,{stage:'operation',missionId:null,missionSeconds:0,objectiveIndex:0,objectiveProgress:0,waveIndex:0,encounterWave:0,nextWave:0,allyPosition:null,allyHull:0,allyMaxHull:0,pendingChoice:null,waitingForDeparture:true,hazards:[],hazardTimer:12,barrierSeconds:0,braceSeconds:0,slowSeconds:0,darknessSeconds:0,fortressBreaks:0,raidCount:0,buffs:{damage:0,protection:0,speed:0},bonusResearch:0,eliteNext:false,decisions:[],abilityCharges:{barrier:6,mend:4,pulse:8},abilityCooldowns:{barrier:0,mend:0,pulse:0,brace:0},missionStartKills:g.kills,missionStartHull:g.hull,resultReward:null});

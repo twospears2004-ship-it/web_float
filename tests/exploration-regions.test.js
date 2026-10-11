@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createCampaign,advance,build,damageEnemy,enemyStats} from '../src/game.js';
 import {missions} from '../src/campaign-content.js';
-import {explorations,explorationSites} from '../src/exploration-content.js';
+import {classicExplorations,explorationSites} from '../src/exploration-content.js';
 import {explorationFormations} from '../src/exploration-regions.js';
 import {launchDefense} from '../src/frontier.js';
 import {selectExplorationSite,finishExploration} from '../src/exploration.js';
@@ -17,7 +17,7 @@ function base(chapter=0){const g=createCampaign();g.resources=10000;g.campaign.c
 function survey(g,index){if(!g.operation.visible.includes(g.catalog[index].id))g.operation.visible.push(g.catalog[index].id);assert.equal(selectExplorationSite(g,g.catalog[index].id),true);g.island={x:g.catalog[index].x,z:g.catalog[index].z};for(let i=0;i<120&&!g.campaign.pendingChoice;i++){for(const e of g.enemies)if(e.hp>0)damageEnemy(g,e,1e6);advance(g,0.25);}assert.ok(g.campaign.pendingChoice);resolveFieldDecision(g,{supplies:'repair',archive:'parts',signal:'shield',salvage:'surface',rescue:'rescue',ammunition:'recycle'}[g.campaign.pendingChoice.kind]);}
 test('24 new coordinates differ, remain connected and bounded, expose both branch choices and preserve recorded landmarks',()=>{
   const layouts=new Set();
-  for(const d of explorations){const sites=explorationSites(d,2),visited=new Set([sites[0].id]);layouts.add(JSON.stringify(sites.map(s=>[s.x,s.z])));
+  for(const d of classicExplorations){const sites=explorationSites(d,2),visited=new Set([sites[0].id]);layouts.add(JSON.stringify(sites.map(s=>[s.x,s.z])));
     for(let n=0;n<8;n++)for(const s of sites)if(visited.has(s.id))for(const id of s.neighbors)visited.add(id);
     assert.equal(visited.size,8);assert.deepEqual(sites.filter(s=>s.landmark).map(s=>s.id),['explore-node-1','explore-node-4','explore-node-7']);assert.ok(sites[0].neighbors.includes(sites[1].id)&&sites[0].neighbors.includes(sites[2].id));assert.ok(sites[4].neighbors.includes(sites[7].id)&&sites[5].neighbors.includes(sites[7].id));
     for(const s of sites){assert.ok(Math.abs(s.x)<=76&&s.z>=-96&&s.z<=-22);assert.ok(explorationFormations[s.formation]);assert.equal(new Set(s.neighbors).size,s.neighbors.length);for(const id of s.neighbors)assert.ok(sites.find(s=>s.id===id).neighbors.includes(s.id));}

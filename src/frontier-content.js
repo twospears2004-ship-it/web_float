@@ -11,6 +11,6 @@ export const defenseContracts=chapters.flatMap((ch,chapter)=>names[chapter].map(
 export const getDefense=id=>defenseContracts.find(d=>d.id===id);
 export const frontierOperations=[...defenseContracts,...siegeContracts,...explorations];
 export const getOperation=id=>getDefense(id)||getSiege(id)||getExploration(id);
-export function operationSites(id,layoutVersion=1) {
-  const d=getOperation(id);if(d?.kind==='explore')return explorationSites(d,layoutVersion);if(d?.kind==='siege')return siegeSites(d);return d?[{id:'defense-base',x:0,z:0,name:d.name,label:'⚑',tier:1+Math.floor(d.rank/2),danger:defensePatterns[d.pattern].name,reward:d.reward,summary:d.description,hint:'시설에 개별 내구도가 있습니다. 공세 사이에 성벽·함정·함대를 정비하고 다음 공격을 시작하세요.',waves:d.waves,task:'defense'}]:[];
+export function operationSites(id,layoutVersion) {
+  const d=getOperation(id);if(d?.kind==='explore')return explorationSites(d,layoutVersion??(d.endgame?3:1));if(d?.kind==='siege')return siegeSites(d);return d?[{id:'defense-base',x:0,z:0,name:d.name,label:'⚑',tier:1+Math.floor(d.rank/2),danger:defensePatterns[d.pattern].name,reward:d.reward,summary:d.description,hint:'시설에 개별 내구도가 있습니다. 공세 사이에 성벽·함정·함대를 정비하고 다음 공격을 시작하세요.',waves:d.waves,task:'defense'}]:[];
 }

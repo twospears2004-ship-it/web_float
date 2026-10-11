@@ -50,8 +50,8 @@ test('abandoning a surveyed voyage restores paid ships, economy and unbanked res
   const g=base();launchDefense(g,'explore-coral-1');const before=structuredClone(g.checkpoint);survey(g,0);choose(g);survey(g,1);resolveFieldDecision(g,'study');assert.ok(g.campaign.bonusResearch>0);
   g.fleet.units[0].hp=1;returnToHarbor(g,true);assert.equal(g.resources,before.resources);assert.deepEqual(g.fleet.units.map(u=>[u.id,u.hp]),before.fleet.units.map(u=>[u.id,u.hp]));assert.equal(g.campaign.research,0);assert.deepEqual(g.campaign.frontier.cleared,[]);decodeSave(encodeSave(g));
 });
-test('24 authored expeditions have connected branching maps and three required landmarks',()=>{
-  assert.equal(explorations.length,24);assert.equal(new Set(explorations.map(d=>d.name)).size,24);
+test('36 authored expeditions have connected branching maps and three required landmarks',()=>{
+  assert.equal(explorations.length,36);assert.equal(new Set(explorations.map(d=>d.name)).size,36);
   for(const d of explorations){const sites=explorationSites(d),visited=new Set([sites[0].id]);for(let i=0;i<8;i++)for(const s of sites)if(visited.has(s.id))for(const id of s.neighbors)visited.add(id);assert.equal(visited.size,8);assert.equal(sites.filter(s=>s.landmark).length,3);for(const s of sites){assert.ok(Math.abs(s.x)<100&&Math.abs(s.z)<100);assert.ok(fieldDecisions[s.decision]);}}
 });
 test('destination exploration remains reachable after losing the entire fleet',()=>{

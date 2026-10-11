@@ -21,6 +21,7 @@ export function regionLinks(chapter,rank){
   return links;
 }
 export const explorationFormations={
+  hunt:{name:'지원선 추격대',hint:'측면 추적자는24m 안의 정비정·방호정을 노립니다. 지원선을 전투선 뒤에 두고 냉각·요격으로 추격을 끊으세요.'},
   screen:{name:'방호 선봉',hint:'철갑 선봉 뒤의 복구 해수를 끊거나 관통포로 앞줄을 뚫으세요.'},
   crossfire:{name:'좌우 사격선',hint:'양쪽 사격선을 동시에 깨우지 않고 한쪽씩 압박하거나 긴 사거리로 제압하세요.'},
   pincer:{name:'갈라진 추격대',hint:'두 접근 방향에 함대를 나누거나 섬 뒤로 모아 범위 무장으로 제압하세요.'},
