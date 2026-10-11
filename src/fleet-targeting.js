@@ -13,7 +13,7 @@ export function setFleetTargeting(g,ids,mode){
   const units=g.fleet.units.filter(u=>u.hp>0&&armedUnit(u)&&ids.includes(u.id));
   if(!units.length||units.every(u=>(u.targeting||'auto')===mode))return false;
   for(const u of units){if(mode==='auto')delete u.targeting;else u.targeting=mode;}
-  if(mode!=='auto')g.fleet.version=3;
+  if(mode!=='auto')g.fleet.version=Math.max(g.fleet.version,3);
   g.message=`공격 함선 ${units.length}기: 자동 사격 ${fleetTargetingModes[mode].name}. 직접 지정한 공격과 예약은 유지됩니다.`;return true;
 }
 export function automaticFleetTarget(g,u,stats,enemyStats){

@@ -132,11 +132,15 @@ export function facilityModel(type, level = 1) {
 }
 export function unitModel(type) {
   const g=new THREE.Group(),turret=new THREE.Group();g.add(turret);turret.position.y=0.35;
-  const long=type==='gunboat'?3.8:type==='torpedo'?3.4:2.8,width=type==='gunboat'?1.5:1.2;
+  const long=type==='gunboat'?3.8:type==='ward'?3.6:type==='torpedo'?3.4:2.8,width=type==='ward'?1.65:type==='gunboat'?1.5:1.2;
   const hull=part(g,new THREE.CylinderGeometry(1,0.7,0.65,6),type==='torpedo'?palette.dark:palette.teal,0,-0.45);hull.scale.set(width,1,long/2);hull.rotation.y=Math.PI/6;
   box(g,width*1.35,0.25,long*0.55,palette.pale,0,-0.1,-0.2);
   box(g,0.7,0.6,0.8,palette.metal,0,0.25,-0.65);box(g,0.55,0.25,0.1,0x8ec8d8,0,0.43,-0.2);
   if(type==='tender'){box(turret,1,0.17,0.22,0xb3e5aa,0,0.8);box(turret,0.22,0.17,1,0xb3e5aa,0,0.8);cylinder(g,0.12,0.12,1.1,palette.brass,0,0.9,-0.6);}
+  else if(type==='ward'){
+    cylinder(g,0.65,0.75,0.35,0x78d9df,0,0.65,-0.5,6);for(const x of [-0.7,0.7])box(g,0.2,1.3,0.35,palette.brass,x,0.8,-0.5);box(g,1.6,0.18,0.35,palette.brass,0,1.4,-0.5);box(turret,0.18,0.18,0.9,palette.dark,0,0.15,1.1);
+    const coverage=new THREE.Mesh(new THREE.RingGeometry(0.985,1,64),material(0x78d9df,{transparent:true,opacity:0.55,side:THREE.DoubleSide,depthWrite:false,depthTest:false}));coverage.rotation.x=Math.PI/2;coverage.position.y=-0.6;coverage.renderOrder=2;coverage.visible=false;coverage.raycast=()=>{};g.add(coverage);g.userData.protection=coverage;
+  }
   else if(type==='torpedo'){for(const x of [-0.65,0.65]){const tube=cylinder(g,0.16,0.16,2,palette.brass,x,0,0.2);tube.rotation.x=Math.PI/2;}}
   else {cylinder(turret,0.35,0.45,0.35,palette.metal,0,0,0.65);box(turret,type==='gunboat'?0.28:0.18,0.18,type==='gunboat'?1.8:1.2,palette.dark,0,0.15,1.3);}
   const ring=part(g,new THREE.RingGeometry(1.5,1.62,32),0xb2e8b5,0,-0.65,0,[Math.PI/2,0,0]);ring.material=material(0xb2e8b5,{side:THREE.DoubleSide,depthTest:false});ring.visible=false;ring.renderOrder=3;

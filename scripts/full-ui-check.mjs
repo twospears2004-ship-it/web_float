@@ -39,6 +39,7 @@ try{
   await fs.symlink(path.join(project,'node_modules'),path.join(frozen,'node_modules'),'junction');
   await fs.mkdir(path.join(frozen,'artifacts'),{recursive:true});
   for(const name of ['campaign-fixtures','colony-fixtures','exploration-fixtures','atlas-fixtures','defense-fixtures'])await fs.cp(path.join(project,'artifacts',name),path.join(frozen,'artifacts',name),{recursive:true});
+  await fs.mkdir(path.join(frozen,'artifacts/journey-wall-current'),{recursive:true});await fs.cp(path.join(project,'artifacts/journey-wall-current/journey-final.json'),path.join(frozen,'artifacts/journey-wall-current/journey-final.json'));report.wardEarnedInputSha256=hash(await fs.readFile(path.join(frozen,'artifacts/journey-wall-current/journey-final.json')));
   report.source=await inventory(path.join(frozen,'src'));report.tests=await inventory(path.join(frozen,'tests'));report.sourceTreeHash=hash(JSON.stringify(report.source));report.testTreeHash=hash(JSON.stringify(report.tests));
   report.runnerSha256=hash(await fs.readFile(new URL(import.meta.url)));await write();
   console.log(JSON.stringify({output,frozen,port,sourceTreeHash:report.sourceTreeHash,testTreeHash:report.testTreeHash}));

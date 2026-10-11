@@ -9,6 +9,7 @@ import { material, tileModel, coreModel, facilityModel, unitModel, enemyModel, a
 import {TileBatch} from './tile-batch.js';
 import {inspectedContact} from './combat-inspector.js';
 import {enemyProtectionRadius} from './enemy-ai.js';
+import {unitStats} from './fleet.js';
 const oceanColor=new THREE.Color(0x276a84);
 
 export class GameView {
@@ -250,6 +251,7 @@ export class GameView {
       let mesh=this.units.get(u.id),bar=this.unitBars.get(u.id);
       if(!mesh){mesh=unitModel(u.type);mesh.userData.unit=u.id;this.units.set(u.id,mesh);this.scene.add(mesh);bar=this.healthBar(u,0xa9dfa7);bar.scale.setScalar(0.7);this.unitBars.set(u.id,bar);}
       mesh.position.set(u.x,Math.sin(g.time*3+u.id)*0.08,u.z);mesh.rotation.y=u.heading;mesh.userData.turret.rotation.y=u.aim-u.heading;mesh.userData.selection.visible=ui.selectedUnits?.includes(u.id);
+      if(mesh.userData.protection){mesh.userData.protection.visible=!!ui.selectedUnits?.includes(u.id);mesh.userData.protection.scale.setScalar(unitStats(g,u).shieldRange);}
       bar.position.set(u.x,2.3,u.z);bar.quaternion.copy(this.camera.quaternion);bar.visible=!!ui.commandMode||u.hp<u.maxHp;
       const ratio=u.hp/u.maxHp;bar.userData.fill.scale.x=ratio;bar.userData.fill.position.x=-(1-ratio)*1.75;
     }

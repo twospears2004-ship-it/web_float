@@ -15,7 +15,7 @@ import {frontierOperations} from '../src/frontier-content.js';
 import {launchDefense,startDefenseWave} from '../src/frontier.js';
 import {selectExplorationSite,finishExploration} from '../src/exploration.js';
 import {structureHull,repairStructure} from '../src/fortifications.js';
-import {recruitUnit,repairFleet,upgradeUnit,orderUnits,refitUnit,unitRefitState} from '../src/fleet.js';
+import {recruitUnit,repairFleet,upgradeUnit,orderUnits,refitUnit,unitRefitState,unitRecruitState} from '../src/fleet.js';
 import {fleetRules} from '../src/fleet-content.js';
 import {setFleetTargeting} from '../src/fleet-targeting.js';
 import {productionTypes,atShore} from '../src/production.js';
@@ -27,6 +27,7 @@ const limit=Number(process.argv.find(a=>a.startsWith('--limit='))?.slice(8) || I
 const supportGuard=process.argv.includes('--support-guard');
 const fleetRefits=process.argv.includes('--fleet-refits');
 const fleetPriorities=process.argv.includes('--fleet-priorities');
+const fleetWards=process.argv.includes('--fleet-wards');
 const requestedOutput=process.argv.find(a=>a.startsWith('--output='))?.slice(9) || 'artifacts',outputPath=path.resolve(requestedOutput),relativeOutput=path.relative(path.resolve('artifacts'),outputPath);
 if(relativeOutput==='..'||relativeOutput.startsWith(`..${path.sep}`)||path.isAbsolute(relativeOutput))throw new Error('Journey output must stay inside artifacts.');
 const output=path.relative(process.cwd(),outputPath).split(path.sep).join('/');
@@ -34,6 +35,7 @@ if(!(limit>=1))throw new Error('Limit must be positive.');
 const report={kind:'fresh continuous story and frontier model',date:new Date().toISOString(),records:[],blocked:null,harvested:0,recall:{calls:0,seconds:0,alreadyInRange:0,notRejoined:0},warning:'One continuous normal economy; simulated combat time does not certify human 20-hour playtime or Steam quality.'};
 report.supportGuard=supportGuard;report.fleetRefits=fleetRefits;report.outlays={fleetProduction:0,fleetUpgrade:0,fleetRepair:0,structureRepair:0,islandRepair:0,resupply:0,fleetRefit:0};
 report.fleetPriorities=fleetPriorities;report.fleetPriorityChanges=0;
+report.fleetWards=fleetWards;report.wardProduction=0;
 await fs.mkdir(`${output}/journey-fixtures`,{recursive:true});
 const itinerary=Array.from({length:12},(_,chapter)=>[
   ...missions.filter(m=>m.chapter===chapter).map(item=>({item,kind:'story'})),
@@ -120,8 +122,12 @@ function prepareFleet(){
   const yard=g.facilities.find(f=>f.type==='shipyard');while(yard&&yard.level<3&&g.resources>500&&upgrade(g,yard.id)){}
   const chapter=g.campaign.chapter,types=chapter>=3?['torpedo','gunboat','tender','skiff']:chapter>=2?['torpedo','gunboat','skiff']:chapter>=1?['gunboat','skiff','skiff']:['skiff','skiff'];
   for(const type of types)if(g.resources>180&&g.fleet.units.filter(u=>u.hp>0&&u.type===type).length<(type==='skiff'?2:1))spend('fleetProduction',()=>recruitUnit(g,type));
+  if(fleetWards&&chapter>=4){
+    while(yard&&yard.level<4&&g.resources>600&&upgrade(g,yard.id)){}
+    if(!g.fleet.units.some(u=>u.hp>0&&u.type==='ward')&&unitRecruitState(g,'ward').available&&g.resources>500&&spend('fleetProduction',()=>recruitUnit(g,'ward')))report.wardProduction++;
+  }
   for(const u of g.fleet.units)while(g.resources>400&&spend('fleetUpgrade',()=>upgradeUnit(g,u.id))){}
-  if(fleetRefits)for(const u of g.fleet.units){const id=(g.campaign.chapter>=8?{skiff:'screen',gunboat:'barrage',torpedo:'evasion',tender:'intensive'}:{skiff:'scout',gunboat:'artillery',torpedo:'penetrator',tender:'remote'})[u.type],state=unitRefitState(g,u,id);if(state.available&&g.resources>=state.cost+150)spend('fleetRefit',()=>refitUnit(g,u.id,id));}
+  if(fleetRefits)for(const u of g.fleet.units){const id=u.type==='ward'?(chapter>=9?'focusedWard':'wideWard'):(g.campaign.chapter>=8?{skiff:'screen',gunboat:'barrage',torpedo:'evasion',tender:'intensive'}:{skiff:'scout',gunboat:'artillery',torpedo:'penetrator',tender:'remote'})[u.type],state=unitRefitState(g,u,id);if(state.available&&g.resources>=state.cost+150)spend('fleetRefit',()=>refitUnit(g,u.id,id));}
   // An optional modeled player strategy uses the same public domain action as
   // the fleet panel. Explicit attacks, economy and repair orders stay identical.
   if(fleetPriorities)for(const u of g.fleet.units){const mode={skiff:'nearest',gunboat:'support',torpedo:'armored'}[u.type];if(u.hp>0&&mode&&setFleetTargeting(g,[u.id],mode))report.fleetPriorityChanges++;}
@@ -129,7 +135,7 @@ function prepareFleet(){
 function guardSupport(){
   if(!supportGuard)return;
   const living=g.fleet.units.filter(u=>u.hp>0),ward=living.find(u=>u.type==='torpedo')||living.find(u=>u.type==='gunboat')||living.find(u=>u.type==='skiff');
-  if(ward)for(const u of living.filter(u=>u.type==='tender'))if(u.command.type!=='guard'||u.command.target!==ward.id)orderUnits(g,[u.id],'guard',{id:ward.id});
+  if(ward)for(const u of living.filter(u=>u.type==='tender'||fleetWards&&u.type==='ward'))if(u.command.type!=='guard'||u.command.target!==ward.id)orderUnits(g,[u.id],'guard',{id:ward.id});
 }
 function faceSite(){
   const site=g.catalog[g.campaign.objectiveIndex],dx=site.x-g.island.x,dz=site.z-g.island.z,desired=Math.abs(dx)>Math.abs(dz)?{x:Math.sign(dx),z:0}:{x:0,z:Math.sign(dz)};
@@ -202,11 +208,11 @@ async function frontier(d){
         const remaining=g.enemies.filter(e=>e.hp>0);
         if(remaining.length<=2||quietSeconds>=20){
           const target=remaining.find(e=>['spitter','tender','carrier'].includes(e.type))||remaining[0];
-          if(target&&target.id!==lastOrder){orderUnits(g,g.fleet.units.filter(u=>u.hp>0&&u.type!=='tender').map(u=>u.id),'attack',{id:target.id});lastOrder=target.id;}
+          if(target&&target.id!==lastOrder){orderUnits(g,g.fleet.units.filter(u=>u.hp>0&&u.type!=='tender'&&(!fleetWards||u.type!=='ward')).map(u=>u.id),'attack',{id:target.id});lastOrder=target.id;}
         }
       }else{
         const target=d.kind==='siege'?g.enemies.find(e=>e.hp>0&&e.type==='generator')||g.enemies.find(e=>e.hp>0&&e.type==='baseCore'):g.enemies.find(e=>e.hp>0&&['nest','tender','bulwark','carrier'].includes(e.type))||g.enemies.find(e=>e.hp>0);
-        if(target&&target.id!==lastOrder){orderUnits(g,g.fleet.units.filter(u=>u.hp>0&&u.type!=='tender').map(u=>u.id),'attack',{id:target.id});lastOrder=target.id;}
+        if(target&&target.id!==lastOrder){orderUnits(g,g.fleet.units.filter(u=>u.hp>0&&u.type!=='tender'&&(!fleetWards||u.type!=='ward')).map(u=>u.id),'attack',{id:target.id});lastOrder=target.id;}
         if(d.kind==='explore'&&!target&&g.campaign.encounterWave+1>=g.catalog[lastNode].waves&&lastOrder!==`scan-${lastNode}`){if(alive().length)orderUnits(g,alive(),'move',g.catalog[lastNode]);else setRoute(g,g.catalog[lastNode].id);lastOrder=`scan-${lastNode}`;}
       }
       abilities();

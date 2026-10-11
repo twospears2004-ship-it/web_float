@@ -4,6 +4,7 @@ import { campaignRules } from './campaign-content.js';
 import { closestHullPoint, hullDistance, separateFromHull } from './hull.js';
 import {onSailed,salvageBonus} from './production.js';
 import {tickFleet,threatenedUnit} from './fleet.js';
+import {fleetProtector} from './fleet-protection.js';
 import {steerEnemy,enemyProtector,enemyRepairRate,repairsEnemy,enemyReinforcement} from './enemy-ai.js';
 import {structureHull,defenseTarget} from './fortifications.js';
 import {structurePosition,validWallSlot,wallEdge} from './walls.js';
@@ -346,11 +347,12 @@ export function applyHullDamage(g, source, amount, target = g.island) {
     reduction=Math.max(reduction,g.campaign.buffs?.protection || 0);
     if(g.campaign.braceSeconds>0 && source.kind)reduction=0.85;
     if (g.campaign.barrierSeconds > 0) reduction = Math.max(reduction, 0.65);
-    for (const f of g.facilities) if (f.type === 'shield') {
+    for (const f of g.facilities) if (f.type === 'shield'&&f.hp!==0) {
       const pos = facilityPosition(g, f), stats = weaponStats(f, g);
       const dot = (pos.x - target.x) * (source.x - target.x) + (pos.z - target.z) * (source.z - target.z);
       if (distance(pos, target) <= stats.range && dot > 0) reduction = Math.max(reduction, 0.3 + (f.level - 1) * 0.04);
     }
+    const cover=fleetProtector(g,target);if(cover)reduction=Math.max(reduction,cover.protection);
   }
   const armor = g.campaign?.expeditionVersion===2 ? 1-(g.campaign.tech.bulkhead || 0)*0.06 : 1;
   const damage = amount * (1 - reduction) * armor;

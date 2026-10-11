@@ -6,16 +6,18 @@ import {launchMission,returnToHarbor} from '../src/campaign.js';
 import {unitTypes,unitRefits} from '../src/fleet-content.js';
 import {recruitUnit,upgradeUnit,unitStats,refitUnit,unitRefitState,fleetSupply,fleetCapacity,tickFleet} from '../src/fleet.js';
 import {encodeSave,decodeSave} from '../src/save.js';
+import {twoBankedCharts} from './banked-chart-fixture.js';
 // Funded mechanical fixtures. UI/native tests use a normally earned island.
 function ready(types=['gunboat']) {
   const g=createCampaign('direct');g.resources=20000;g.campaign.chapter=11;g.campaign.completed=missions.slice(0,66).map(m=>m.id);assert(build(g,'shipyard',1,0));const yard=g.facilities.at(-1);assert(upgrade(g,yard.id));assert(upgrade(g,yard.id));
+  if(types.includes('ward')){twoBankedCharts(g);assert(upgrade(g,yard.id));}
   for(const type of types){assert(recruitUnit(g,type));while(g.fleet.units.at(-1).level<6)assert(upgradeUnit(g,g.fleet.units.at(-1).id));}return g;
 }
-test('all eight refits make a real tradeoff, charge exactly and preserve damage ratio, orders and firing cooldown',()=>{
+test('all paid refits make a real tradeoff, charge exactly and preserve damage ratio, orders and firing cooldown',()=>{
   for(const [id,refit] of Object.entries(unitRefits)){
     const g=ready([refit.type]),u=g.fleet.units[0],base=unitStats(g,u),cost=unitRefitState(g,u,id).cost,supply=fleetSupply(g),capacity=fleetCapacity(g);u.hp=u.maxHp*.42;u.cooldown=1.7;u.command={type:'move',x:20,z:10};u.orders=[{type:'attackMove',x:30,z:20}];const order=structuredClone(u.command),cash=g.resources;
     assert(refitUnit(g,u.id,id));const after=unitStats(g,u);assert.equal(g.resources,cash-cost);assert.equal(u.maxHp,after.hp);assert(Math.abs(u.hp/u.maxHp-.42)<1e-12);assert.equal(u.cooldown,1.7);assert.deepEqual(u.command,order);assert.deepEqual(u.orders,[{type:'attackMove',x:30,z:20}]);assert.equal(fleetSupply(g),supply);assert.equal(fleetCapacity(g),capacity);
-    const keys=['hp','damage','heal','range','speed','pierce','splash'];assert(keys.some(k=>(after[k]||0)>(base[k]||0)),id);assert(keys.some(k=>(after[k]||0)<(base[k]||0)),id);const refitCash=g.resources;assert(!refitUnit(g,u.id,id));assert.equal(g.resources,refitCash);assert(refitUnit(g,u.id,'standard'));assert.deepEqual(unitStats(g,u),base);assert.equal(u.refit,undefined);assert(Math.abs(u.hp/u.maxHp-.42)<1e-12);
+    const keys=['hp','damage','heal','range','speed','pierce','splash','protection','shieldRange'];assert(keys.some(k=>(after[k]||0)>(base[k]||0)),id);assert(keys.some(k=>(after[k]||0)<(base[k]||0)),id);const refitCash=g.resources;assert(!refitUnit(g,u.id,id));assert.equal(g.resources,refitCash);assert(refitUnit(g,u.id,'standard'));assert.deepEqual(unitStats(g,u),base);assert.equal(u.refit,undefined);assert(Math.abs(u.hp/u.maxHp-.42)<1e-12);
   }
 });
 test('refit blockers are atomic and expose exact sea, level, yard, service and resource requirements',()=>{

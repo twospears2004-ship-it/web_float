@@ -4,6 +4,7 @@ export const unitTypes={
   gunboat:{name:'포격정',icon:'◉',cost:100,supply:2,hp:150,speed:7,range:22,damage:17,interval:1.9,pierce:0.2,splash:4,radius:1.15,unlock:1,yardLevel:2,description:'멀리서 범위 포격 · 밀집한 수비대를 제압'},
   torpedo:{name:'잠수정',icon:'⌁',cost:140,supply:2,hp:100,speed:9.5,range:13,damage:28,interval:2.4,pierce:0.7,radius:1,unlock:2,yardLevel:3,description:'장갑 70% 관통 · 포대와 철갑 상대에 강함'},
   tender:{name:'정비정',icon:'✚',cost:110,supply:2,hp:95,speed:9,range:12,damage:0,heal:8,interval:2,radius:1,unlock:3,yardLevel:3,description:'주변 아군·섬 중 손상 비율이 큰 대상을 복구'},
+  ward:{name:'방호정',icon:'⬡',cost:220,supply:3,hp:180,speed:7,range:16,damage:5,interval:2.5,pierce:0,radius:1.3,unlock:4,yardLevel:4,charts:2,protection:0.22,shieldRange:10,description:'완성 해도 2개 · 주변 아군 피해 22% 경감 · 자신은 보호하지 않음 · 낮은 화력/정원 3'},
 };
 // Optional, paid role choices. The standard equipment and all earlier saves
 // retain their original stats; every refit exchanges a strength for a weakness.
@@ -16,4 +17,6 @@ export const unitRefits={
   evasion:{type:'torpedo',name:'회피 추진기',unlock:8,level:5,speed:1.2,hp:0.85,damage:0.9,description:'속도 +20% · 내구도 -15% · 피해 -10%'},
   remote:{type:'tender',name:'원격 수리',unlock:4,level:3,range:5,heal:0.8,speed:0.9,description:'수리 범위 +5m · 회당 복구 -20% · 속도 -10%'},
   intensive:{type:'tender',name:'집중 정비',unlock:8,level:5,heal:1.25,range:-3,hp:0.9,description:'회당 복구 +25% · 수리 범위 -3m · 내구도 -10%'},
+  wideWard:{type:'ward',name:'확산 방호',unlock:6,level:3,shieldRange:4,protection:0.75,hp:0.9,speed:0.9,description:'방호 범위 +4m · 피해 경감 22% → 16.5% · 내구도 -10% · 속도 -10%'},
+  focusedWard:{type:'ward',name:'집중 방호',unlock:9,level:5,shieldRange:-3,protection:1.3,speed:0.85,description:'피해 경감 22% → 28.6% · 방호 범위 -3m · 속도 -15%'},
 };

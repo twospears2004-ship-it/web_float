@@ -2,7 +2,7 @@ import {unitRefits,fleetRules} from './fleet-content.js';
 import {unitRefitState} from './fleet.js';
 const number=n=>Number(n.toFixed(1));
 export function refitStatsText(stats) {
-  return `내구도 ${stats.hp} · 속도 ${number(stats.speed)}m/s · 사거리 ${stats.range}m · ${stats.heal?`복구 ${number(stats.heal)}`:`피해 ${number(stats.damage)} · 관통 ${Math.round((stats.pierce||0)*100)}%${stats.splash?` · 폭발 ${stats.splash}m`:''}`}`;
+  return `내구도 ${stats.hp} · 속도 ${number(stats.speed)}m/s · 사거리 ${stats.range}m · ${stats.heal?`복구 ${number(stats.heal)}`:`피해 ${number(stats.damage)} · 관통 ${Math.round((stats.pierce||0)*100)}%${stats.splash?` · 폭발 ${stats.splash}m`:''}`}${stats.protection?` · 아군 피해 ${number(stats.protection*100)}% 경감 · 방호 ${stats.shieldRange}m(자신 제외)`:''}`;
 }
 export function renderFleetRefits(card,g,u) {
   let details=card.querySelector('[data-unit-refits]');

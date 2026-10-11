@@ -3,6 +3,7 @@ import {waterPoint,waterPath,navigable,clearLine} from './navigation.js';
 import {hullDistance} from './hull.js';
 import {automaticFleetTarget} from './fleet-targeting.js';
 import {fleetFormations,fleetFormationPosition} from './fleet-formations.js';
+import {atlasSummary} from './atlas.js';
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z),emit=(g,e)=>{g.events.push(e);if(g.events.length>180)g.events.shift();};
 export const emptyFleet=()=>({version:1,nextId:1,units:[]});
 export const controlGroupNumbers=[5,6,7,8,9];
@@ -30,9 +31,9 @@ function pruneControlGroups(fleet) {
 }
 export function unitStats(g,u) {
   const base=unitTypes[u.type],level=u.level || 1,damage=(1+(level-1)*0.3)*(1+(g.campaign?.tech.ballistics || 0)*0.12);
-  const stats={...base,hp:Math.round(base.hp*(1+(level-1)*0.3)),damage:base.damage*damage,heal:base.heal?base.heal*(1+(level-1)*0.2):0,range:base.range+(level-1),speed:base.speed*(1+(g.campaign?.tech.navigation || 0)*0.04)},refit=unitRefits[u.refit];
+  const stats={...base,hp:Math.round(base.hp*(1+(level-1)*0.3)),damage:base.damage*damage,heal:base.heal?base.heal*(1+(level-1)*0.2):0,range:base.range+(level-1),speed:base.speed*(1+(g.campaign?.tech.navigation || 0)*0.04),...(base.protection?{shieldRange:base.shieldRange+(level-1)*0.5}:{})},refit=unitRefits[u.refit];
   if(!refit||refit.type!==u.type)return stats;
-  return {...stats,hp:Math.round(stats.hp*(refit.hp||1)),damage:stats.damage*(refit.damage||1),heal:stats.heal*(refit.heal||1),range:stats.range+(refit.range||0),speed:stats.speed*(refit.speed||1),pierce:Math.min(1,(stats.pierce||0)+(refit.pierce||0)),splash:(stats.splash||0)+(refit.splash||0)};
+  return {...stats,hp:Math.round(stats.hp*(refit.hp||1)),damage:stats.damage*(refit.damage||1),heal:stats.heal*(refit.heal||1),range:stats.range+(refit.range||0),speed:stats.speed*(refit.speed||1),pierce:Math.min(1,(stats.pierce||0)+(refit.pierce||0)),splash:(stats.splash||0)+(refit.splash||0),...(base.protection?{protection:stats.protection*(refit.protection||1),shieldRange:stats.shieldRange+(refit.shieldRange||0)}:{})};
 }
 export function fleetCapacity(g) {const yard=Math.max(0,...g.facilities.filter(f=>f.type==='shipyard'&&f.hp!==0).map(f=>f.level));return yard?Math.min(fleetRules.maximum,fleetRules.baseCapacity+yard*fleetRules.capacityPerLevel):0;}
 export function fleetSupply(g) {return (g.fleet?.units || []).filter(u=>u.hp>0).reduce((n,u)=>n+unitTypes[u.type].supply,0);}
@@ -42,13 +43,20 @@ function anchor(g,index,count,occupied=[]) {
   const radius=Math.max(...g.tiles.map(t=>Math.max(Math.abs(t.x),Math.abs(t.z))))*3.4+7,angle=(index+0.5)*Math.PI*2/Math.max(1,count);
   return waterPoint(g,{x:g.island.x+Math.sin(angle)*radius,z:g.island.z+Math.cos(angle)*radius},1.2,occupied);
 }
+export function unitRecruitState(g,type){
+  const stats=unitTypes[type],yard=Math.max(0,...g.facilities.filter(f=>f.type==='shipyard'&&f.hp!==0).map(f=>f.level)),charts=stats?.charts&&g.campaign?atlasSummary(g.campaign).full:0;
+  let reason='';
+  if(!manageable(g)||g.campaign.pendingChoice)reason='함대 생산은 항해·교전·회수품 선택이 끝난 정비 중 가능합니다.';
+  else if(!stats||yard<stats.yardLevel||g.campaign.chapter<stats.unlock)reason='조선소 단계와 해역 설계도를 확인하세요.';
+  else if(stats.charts&&charts<stats.charts)reason=`완성 해도 ${charts}/${stats.charts} · 탐험 기록을 가지고 귀환하세요.`;
+  else if(fleetSupply(g)+stats.supply>fleetCapacity(g))reason='함대 정원이 부족합니다. 조선소를 강화하거나 편성을 바꾸세요.';
+  else if(g.resources<stats.cost)reason='함대 생산 자원이 부족합니다.';
+  return {available:!reason,reason,charts,yard};
+}
 export function recruitUnit(g,type) {
-  const stats=unitTypes[type],yard=g.facilities.filter(f=>f.type==='shipyard'&&f.hp!==0).sort((a,b)=>b.level-a.level)[0];
-  if(!manageable(g))return deny(g,'함대 생산은 항해·교전이 끝난 정비 중 가능합니다.');
-  if(!stats||!yard||yard.level<stats.yardLevel||g.campaign.chapter<stats.unlock)return deny(g,'조선소 단계와 해역 설계도를 확인하세요.');
-  if(fleetSupply(g)+stats.supply>fleetCapacity(g))return deny(g,'함대 정원이 부족합니다. 조선소를 강화하거나 편성을 바꾸세요.');
-  if(g.resources<stats.cost)return deny(g,'함대 생산 자원이 부족합니다.');
+  const stats=unitTypes[type],state=unitRecruitState(g,type);if(!state.available)return deny(g,state.reason);
   g.fleet ||= emptyFleet();g.fleet.units=g.fleet.units.filter(u=>u.hp>0);pruneControlGroups(g.fleet);g.resources-=stats.cost;
+  if(type==='ward')g.fleet.version=4;
   const occupied=g.fleet.units.map(other=>({...other,radius:unitTypes[other.type].radius}));
   const u={id:g.fleet.nextId++,type,level:1,hp:stats.hp,maxHp:stats.hp,...anchor(g,g.fleet.units.length,g.fleet.units.length+1,occupied),heading:0,aim:0,cooldown:0,command:{type:'escort'},waypoints:[],repath:0};
   g.fleet.units.push(u);emit(g,{type:'build',x:u.x,z:u.z});g.message=`${stats.name} 출동 준비. 클릭·드래그로 선택하고 우클릭으로 지휘하세요.`;return true;
