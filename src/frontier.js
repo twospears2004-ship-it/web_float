@@ -29,8 +29,9 @@ export function launchDefense(g,id) {
   if(['siege','explore'].includes(def.kind)&&(!g.facilities.some(f=>f.type==='shipyard'&&f.hp!==0)||!g.fleet?.units.some(u=>u.hp>0))){g.message='기지 공략과 탐험에는 조선소와 살아 있는 함대가 필요합니다.';return false;}
   g.fleet ||= emptyFleet();g.checkpoint=captureShip(g);c.frontier ||= frontierState();
   g.operation={version:1,id,kind:def.kind,chapter:def.chapter,round:0,waiting:true,result:null};
-  if(def.kind==='explore')Object.assign(g.operation,{visible:[...atlasChart(c,id).seen],scan:0});
-  Object.assign(g,{island:{x:0,z:0},heading:0,route:null,combat:false,enemies:[],catalog:operationSites(id),sites:operationSites(id).map(s=>({id:s.id,cleared:false})),events:[],accumulator:0});
+  if(def.kind==='explore'){const chart=atlasChart(c,id),recorded=!!c.atlas?.charts[id]||!!c.frontier.records[id];Object.assign(g.operation,{layoutVersion:recorded?chart.layoutVersion||1:2,visible:[...chart.seen],scan:0});}
+  const catalog=operationSites(id,g.operation.layoutVersion);
+  Object.assign(g,{island:{x:0,z:0},heading:0,route:null,combat:false,enemies:[],catalog,sites:catalog.map(s=>({id:s.id,cleared:false})),events:[],accumulator:0});
   Object.assign(c,{stage:'operation',missionId:null,missionSeconds:0,objectiveIndex:0,objectiveProgress:0,waveIndex:0,encounterWave:0,nextWave:0,allyPosition:null,allyHull:0,allyMaxHull:0,pendingChoice:null,waitingForDeparture:true,hazards:[],hazardTimer:12,barrierSeconds:0,braceSeconds:0,slowSeconds:0,darknessSeconds:0,fortressBreaks:0,raidCount:0,buffs:{damage:0,protection:0,speed:0},bonusResearch:0,eliteNext:false,decisions:[],abilityCharges:{barrier:6,mend:4,pulse:8},abilityCooldowns:{barrier:0,mend:0,pulse:0,brace:0},missionStartKills:g.kills,missionStartHull:g.hull,resultReward:null});
   for(const f of g.facilities){f.hp ??=structureHull(f);f.cooldown=0;}
   resetProductionForMission(g);deployFleet(g);g.message=def.kind==='explore'?`${def.name}: 발견한 부표의 항로를 선택하세요. 함대를 보내 새 신호를 찾을 수 있습니다.`:def.kind==='siege'?`${def.name}: 함대를 정비하고 첫 거점 공략을 시작하세요.`:`${def.name}: 성벽과 함대를 배치한 뒤 첫 공세를 시작하세요.`;return true;

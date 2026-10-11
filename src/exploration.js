@@ -19,10 +19,22 @@ function spawnExplorationWave(g){
   const op=g.operation,def=getExploration(op.id),site=g.catalog[op.round],wave=g.campaign.encounterWave;
   const pool=['crawler',...(def.chapter>=1?['skimmer']:[]),...(def.chapter>=2?['armored']:[]),...(def.chapter>=3?['spitter']:[]),...(def.chapter>=4?['bomber']:[])];
   const types=Array.from({length:3+Math.floor(def.chapter/3)+(wave%2)},(_,i)=>pool[(i+wave+op.round)%pool.length]);
+  if(op.layoutVersion===2){
+    if(site.formation==='screen'){types[0]=def.chapter>=2?'armored':'crawler';if(def.chapter>=3&&wave%2===0)types[types.length-1]='tender';}
+    if(site.formation==='crossfire'&&def.chapter>=3){types[0]=types[1]='spitter';}
+    if(site.formation==='pincer'){types[0]=types[1]=def.chapter>=1?'skimmer':'crawler';}
+    if(site.formation==='swarm')for(let i=0;i<types.length;i++)types[i]=def.chapter>=4&&i%3===0?'bomber':def.chapter>=1?'skimmer':'crawler';
+  }
   if(['battery','guardian'].includes(site.task))types[0]='nest';
   if(def.chapter>=3&&wave%2===1)types.push('tender');if(def.chapter>=5&&wave===0)types.push('bulwark');if(def.chapter>=7&&wave===1)types.push('carrier');
   if(g.campaign.eliteNext)types.push(def.chapter>=2?'armored':'crawler');
-  g.enemies=types.map((type,i)=>{const stats=campaignRules.enemies[type],hp=Math.round(stats.hp*1.7*(1+def.chapter*0.6)**1.25*(1+def.rank*0.2)),p=separateFromHull(g,{x:site.x+(i%2?1:-1)*(6+Math.floor(i/2)*4),z:site.z-8+Math.floor(i/2)*4},stats.radius);return {id:`${op.id}-${op.round}-${wave}-${i}`,siteId:site.id,type,...p,hp,maxHp:hp,active:false,rewarded:false,cooldown:0,slowSeconds:0,slowFactor:1,windup:null,bossPhase:1,spawnCount:0,spawnTimer:10};});
+  g.enemies=types.map((type,i)=>{const stats=campaignRules.enemies[type],hp=Math.round(stats.hp*1.7*(1+def.chapter*0.6)**1.25*(1+def.rank*0.2));
+    let dx=(i%2?1:-1)*(6+Math.floor(i/2)*4),dz=-8+Math.floor(i/2)*4;
+    if(site.formation==='crossfire'){dx=(i%2?1:-1)*(19+Math.floor(i/2)*2);dz=-4+Math.floor(i/2)*4;}
+    if(site.formation==='pincer'){dx=(i%2?1:-1)*(14+Math.floor(i/2)*3);dz=i%2?-12:7;}
+    if(site.formation==='screen'||site.formation==='battery'){dx=(i%3-1)*7;dz=['tender','carrier','spitter'].includes(type)?-16:-2-Math.floor(i/3)*5;}
+    const p=separateFromHull(g,{x:Math.max(-106,Math.min(106,site.x+dx)),z:Math.max(-106,Math.min(106,site.z+dz))},stats.radius);
+    return {id:`${op.id}-${op.round}-${wave}-${i}`,siteId:site.id,type,...p,hp,maxHp:hp,active:false,rewarded:false,cooldown:0,slowSeconds:0,slowFactor:1,windup:null,bossPhase:1,spawnCount:0,spawnTimer:10};});
   g.campaign.waveIndex++;emit(g,{type:'wave'});
 }
 export function afterExplorationTick(g,dt){
@@ -36,7 +48,7 @@ export function afterExplorationTick(g,dt){
   op.scan=near?Math.min(2,op.scan+dt):0;if(op.scan<2)return;
   g.sites[op.round].cleared=true;onSiteSecured(g,site);op.waiting=true;g.route=null;c.waitingForDeparture=true;c.eliteNext=false;
   for(const id of site.neighbors)if(!op.visible.includes(id))op.visible.push(id);
-  c.pendingChoice={site:op.round,kind:site.decision};g.message=`${site.name} 조사 완료. 회수품을 선택한 뒤 다음 항로를 고르세요.`;
+  c.pendingChoice={site:op.round,kind:site.decision};g.message=`${site.name} 조사 완료.${op.layoutVersion===2&&op.round===4?' 연결된 후속 수비대 피해 -20%.':op.layoutVersion===2&&op.round===5?' 연결된 후속 모체 증원 차단.':''} 회수품을 선택한 뒤 다음 항로를 고르세요.`;
 }
 export function finishExploration(g){
   if(!canExtract(g)||g.phase!=='playing'||g.paused)return false;

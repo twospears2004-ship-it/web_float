@@ -7,7 +7,7 @@ export function atlasChart(c,id){
   if(c.atlas?.charts[id])return c.atlas.charts[id];
   const old=c.atlas===undefined?c.frontier?.records[id]:null;
   if(!old)return emptyChart();
-  const sites=explorationSites(getExploration(id)),surveyed=sites.filter(s=>old.surveyed===8||s.landmark).map(s=>s.id);
+  const sites=explorationSites(getExploration(id),1),surveyed=sites.filter(s=>old.surveyed===8||s.landmark).map(s=>s.id);
   // Old saves keep a count, not their visited optional node identities or bonus
   // history. Preserve that count and suppress duplicate old completion bonuses.
   return {...emptyChart(),seen:[...new Set(['explore-node-0',...surveyed])],surveyed,returns:1,fullRewarded:true,legacySurveyed:old.surveyed};
@@ -27,6 +27,6 @@ export function bankExploration(g){
   const c=g.campaign,op=g.operation,atlas=migrateAtlas(c),old=atlasChart(c,op.id),surveyed=[...new Set([...old.surveyed,...g.sites.filter(s=>s.cleared).map(s=>s.id)])];
   const newSurveys=surveyed.filter(id=>!old.surveyed.includes(id)).length,chartReward=surveyed.length===8&&!old.fullRewarded,choices={...old.choices};
   for(const d of c.decisions)if(g.sites[d.site].cleared)choices[g.catalog[d.site].id]=d.option;
-  atlas.charts[op.id]={seen:[...new Set([...old.seen,...op.visible])],surveyed,choices,returns:old.returns+1,fullRewarded:old.fullRewarded||chartReward,legacySurveyed:old.legacySurveyed};
+  atlas.charts[op.id]={seen:[...new Set([...old.seen,...op.visible])],surveyed,choices,returns:old.returns+1,fullRewarded:old.fullRewarded||chartReward,legacySurveyed:old.legacySurveyed,layoutVersion:op.layoutVersion||1};
   return {newSurveys,chartSurveyed:surveyed.length,chartReward};
 }

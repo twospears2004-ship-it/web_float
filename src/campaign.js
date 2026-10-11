@@ -6,6 +6,7 @@ import {emptyFleet,deployFleet} from './fleet.js';
 import {shipFields,captureShip} from './ship-state.js';
 import {atlasState,atlasHasSurvey,atlasSummary,researchChartRequirement} from './atlas.js';
 import {getSiege} from './siege-content.js';
+import {explorationInterference} from './exploration-content.js';
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const event = (g, e) => { g.events.push(e); if (g.events.length > 180) g.events.shift(); };
@@ -102,9 +103,11 @@ export function campaignEnemyStats(g, e) {
   const m = getMission(g.campaign.missionId);
   const chapter = getSiege(g.operation?.id)?.combatChapter ?? g.operation?.chapter ?? m?.chapter ?? 0;
   const expedition = g.campaign.expeditionVersion === 2;
+  const interference=explorationInterference(g,e);
   return { ...base, name:e.type==='leviathan'?chapters[chapter].boss:base.name, pattern:bossPatterns[chapter],
     armor: (base.armor || 0) * (expedition && ['nest','leviathan'].includes(e.type) ? 1-Math.min(0.75,(g.campaign.fortressBreaks || 0)*0.1) : 1),
-    damage: Math.max(base.damage===0?0:1,Math.round(base.damage * (expedition ? 0.3+chapter*0.016 : 1+chapter*0.18))),
+    damage: Math.max(base.damage===0?0:1,Math.round(base.damage * (expedition ? 0.3+chapter*0.016 : 1+chapter*0.18))) * interference.damage,
+    spawn:base.spawn&&interference.spawn,
     interval: base.interval + (expedition ? 0.8 : 0),
     reward: Math.max(1,Math.round(base.reward * (expedition ? Math.max(0.22,0.42-chapter*0.02) : 1+chapter*0.16) * (1 + (g.campaign.tech.logistics || 0) * 0.1))),
     speed: base.speed * (e.slowSeconds > 0 ? e.slowFactor : 1) * (e.bossPhase === 2 ? 1.2 : 1) };

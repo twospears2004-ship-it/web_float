@@ -20,7 +20,8 @@ function validateAtlas(c){
   const a=c.atlas;check(a?.version===1&&a.charts&&typeof a.charts==='object'&&!Array.isArray(a.charts)&&Object.keys(a.charts).length<=explorations.length,'항로 기록 형식이 올바르지 않습니다.');
   for(const [id,r]of Object.entries(a.charts)){
     const d=getExploration(id);check(d&&c.frontier?.cleared.includes(id)&&d.chapter<=c.chapter,'보관한 항로를 복원할 수 없습니다.');
-    const sites=explorationSites(d),ids=new Set(sites.map(s=>s.id)),list=items=>Array.isArray(items)&&items.length<=8&&new Set(items).size===items.length&&items.every(v=>ids.has(v));
+    check(r&&(r.layoutVersion===undefined||[1,2].includes(r.layoutVersion)),'보관한 탐험 지도 버전이 올바르지 않습니다.');
+    const sites=explorationSites(d,r.layoutVersion||1),ids=new Set(sites.map(s=>s.id)),list=items=>Array.isArray(items)&&items.length<=8&&new Set(items).size===items.length&&items.every(v=>ids.has(v));
     check(r&&list(r.seen)&&r.seen.includes('explore-node-0')&&list(r.surveyed)&&sites.filter(s=>s.landmark).every(s=>r.surveyed.includes(s.id))&&r.surveyed.every(v=>r.seen.includes(v)),'보관한 조사 지점이 올바르지 않습니다.');
     check(integer(r.returns,1,100000)&&typeof r.fullRewarded==='boolean'&&integer(r.legacySurveyed,0,8)&&(r.legacySurveyed===0||r.legacySurveyed>=3)&&(!r.fullRewarded||r.surveyed.length===8||r.legacySurveyed>0)&&(r.surveyed.length<8||r.fullRewarded),'항로 귀환과 보상 기록이 올바르지 않습니다.');
     check(r.choices&&typeof r.choices==='object'&&!Array.isArray(r.choices)&&(r.legacySurveyed>0||Object.keys(r.choices).length===r.surveyed.length)&&Object.entries(r.choices).every(([site,option])=>r.surveyed.includes(site)&&fieldDecisions[sites.find(s=>s.id===site)?.decision]?.options.some(o=>o.id===option)),'보관한 회수품 선택이 올바르지 않습니다.');
@@ -104,8 +105,10 @@ export function validateCampaign(g) {
   const mission = getMission(c.missionId);
   check(c.stage === 'harbor'||isOperation ? c.missionId === null : mission && (c.completed.includes(mission.id) || mission.index === c.completed.length), '현재 임무를 복원할 수 없습니다.');
   check(c.expeditionVersion===undefined || [1,2].includes(c.expeditionVersion),'지원하지 않는 원정 규칙입니다.');
-  const catalog = isOperation ? operationSites(operation.id):mission ? missionSites(mission,c.expeditionVersion) : [];
+  check(g.operation?.layoutVersion===undefined||(operation?.kind==='explore'&&[1,2].includes(g.operation.layoutVersion)),'탐험 지도 버전이 올바르지 않습니다.');
+  const catalog = isOperation ? operationSites(operation.id,g.operation.layoutVersion||1):mission ? missionSites(mission,c.expeditionVersion) : [];
   if(operation?.kind==='explore'){
+    const chart=c.atlas?.charts[operation.id];check(!chart||(chart.layoutVersion||1)===(g.operation.layoutVersion||1),'진행 중인 탐험과 보관한 지도 버전이 일치하지 않습니다.');
     check(Array.isArray(g.operation.visible)&&g.operation.visible.length<=catalog.length&&new Set(g.operation.visible).size===g.operation.visible.length&&g.operation.visible.includes(catalog[0].id)&&g.operation.visible.every(id=>catalog.some(s=>s.id===id))&&finite(g.operation.scan,0,2),'탐험 발견과 조사 상태가 올바르지 않습니다.');
     check(g.operation.round===c.objectiveIndex&&g.sites.every(s=>!s.cleared||g.operation.visible.includes(s.id)),'탐험 항로와 조사 기록이 일치하지 않습니다.');
     if(g.operation.result)check(integer(g.operation.result.surveyed,3,8)&&g.operation.result.surveyed===g.sites.filter(s=>s.cleared).length&&g.operation.result.full===(g.operation.result.surveyed===8)&&catalog.filter(s=>s.landmark).every(s=>g.sites.some(v=>v.id===s.id&&v.cleared)),'탐험 귀환 기록이 올바르지 않습니다.');
@@ -164,7 +167,7 @@ export function decodeSave(text) {
   migrateAtlas(g.campaign);
   migrateWalls(g);
   g.fleet ||= emptyFleet();if(g.checkpoint)g.checkpoint.fleet ||= emptyFleet();
-  g.catalog = g.operation?operationSites(g.operation.id):g.campaign.missionId ? missionSites(getMission(g.campaign.missionId),g.campaign.expeditionVersion) : [];
+  g.catalog = g.operation?operationSites(g.operation.id,g.operation.layoutVersion||1):g.campaign.missionId ? missionSites(getMission(g.campaign.missionId),g.campaign.expeditionVersion) : [];
   g.events = []; g.accumulator = 0; g.paused = true; return g;
 }
 export function saveCampaign(g, storage = globalThis.localStorage) {

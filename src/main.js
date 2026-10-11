@@ -412,6 +412,11 @@ function drawMap() {
   for (let y = 10; y < h; y += 25) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); }
   const point = (p) => ({ x: 115 + p.x * 0.65, y: 100 + p.z * 0.65 });
   const current = point(game.island), tracked = ui.trackedSite === 'home' ? { x: 0, z: 0 } : sitesFor(game).find(s => s.id === ui.trackedSite);
+  if(isExploring(game)&&game.operation.layoutVersion===2){
+    for(const [i,site] of game.catalog.entries())if(knownSite(game,site.id))for(const id of site.neighbors){const j=game.catalog.findIndex(s=>s.id===id);if(j<=i||!knownSite(game,id))continue;
+      const a=point(site),b=point(game.catalog[j]);c.strokeStyle=(i===5&&game.sites[i].cleared)||(j===5&&game.sites[j].cleared)?'#70c4c2aa':(i===4&&game.sites[i].cleared)||(j===4&&game.sites[j].cleared)?'#edcc82aa':'#9fbfbb60';c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();
+    }
+  }
   if (tracked) { const p = point(tracked); c.strokeStyle = '#edcc8290'; c.setLineDash([3, 4]); c.beginPath(); c.moveTo(current.x, current.y); c.lineTo(p.x, p.y); c.stroke(); c.setLineDash([]); }
   c.font = '14px sans-serif'; c.fillStyle = '#bbd3c9'; c.textAlign = 'center'; c.fillText('⌂', 115, 110);
   for (const [i, s] of sitesFor(game).entries()) {
@@ -484,7 +489,10 @@ function updateDefense(force) {
     $('send-survey').disabled=op.waiting||!!c.pendingChoice||game.paused||alive>0||c.encounterWave+1<site.waves;$('send-survey').textContent=game.fleet.units.some(u=>u.hp>0)?ui.selectedUnits.length?'선택 함대를 조사 지점으로':'함대를 조사 지점으로':'섬으로 조사 지점 접근';$('extract-exploration').disabled=!canExtract(game)||game.paused;
     $('mission-hud').hidden=false;$('mission-name').textContent=def.name;$('mission-progress').textContent=$('defense-status').textContent;$('ally-hud').hidden=true;$('ability-bar').hidden=c.stage!=='operation';$('restart-button').textContent='탐험 재시작';$('route-toggle').hidden=true;$('field-repairs').hidden=false;$('enemy-intel').hidden=false;
     $('sea-state').textContent=game.paused?'일시정지':op.waiting?'탐험 · 다음 신호 선택':'탐험 · '+site.name;
-    $('enemy-intel').innerHTML=`<h3>미지 항로 탐험</h3><p class="board-help">${def.description}</p><p class="board-help">미발견 신호는 지도에 나타나지 않습니다. 함대를 나누어 정찰하세요. 수비대 격파 후 함선6m 또는 섬 물가4m 안에서2초 조사합니다. 조사 사이에 시설·함대 정비와 수확이 가능합니다.</p>`;
+    const linked=index=>game.sites[index]?.cleared&&game.catalog[index].neighbors.includes(site.id),effects=[linked(4)?'수비대 피해 -20%':'',linked(5)?'모체 증원 차단':''].filter(Boolean).join(' · ');
+    const tactical=op.layoutVersion===2?`<p class="board-help">중계기 조사 → 연결 수비대 피해 -20% · 봉쇄 포대 조사 → 연결 모체 증원 차단. 지도 연결선의 금색은 교란, 청록색은 증원 차단입니다.</p><p class="board-help" data-exploration-effects>현재 연결 효과: ${effects||'없음'}</p><p class="board-help">현재 수비: ${site.danger} · ${site.summary}</p><p class="board-help">${site.hint}</p>`:'';
+    const intelKey=`${op.id}:${op.round}:${op.layoutVersion}:${effects}`;
+    if(force||$('enemy-intel').dataset.key!==intelKey){$('enemy-intel').dataset.key=intelKey;$('enemy-intel').innerHTML=`<h3>미지 항로 탐험</h3><p class="board-help">${def.description}</p>${tactical}<p class="board-help">미발견 신호는 지도에 나타나지 않습니다. 함대를 나누어 정찰하세요. 수비대 격파 후 함선6m 또는 섬 물가4m 안에서2초 조사합니다. 조사 사이에 시설·함대 정비와 수확이 가능합니다.</p>`;}
     document.querySelectorAll('[data-ability]').forEach(b=>{const id=b.dataset.ability;b.disabled=!!c.pendingChoice||game.paused||c.abilityCooldowns[id]>0||(id!=='brace'&&c.abilityCharges[id]<=0)||id==='brace';});return;
   }
   const siege=def.kind==='siege',cores=game.enemies.filter(e=>e.type==='baseCore'&&e.hp>0&&!e.captured),generators=game.enemies.filter(e=>e.type==='generator'&&e.hp>0&&!e.captured);
