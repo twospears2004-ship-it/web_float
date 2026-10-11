@@ -48,7 +48,7 @@ test('ward refit sea and level gates retain resources and equipment',()=>{
   for(const [id,chapter,level] of [['wideWard',5,3],['wideWard',6,2],['focusedWard',8,5],['focusedWard',9,4]]){const g=ready();assert(recruitUnit(g,'ward'));g.campaign.chapter=chapter;const w=g.fleet.units[0];w.level=level;const cash=g.resources,fleet=structuredClone(g.fleet);assert(!refitUnit(g,w.id,id));assert.equal(g.resources,cash);assert.deepEqual(g.fleet,fleet);}
 });
 test('new fleet rejects old and unknown schema labels in active saves and checkpoints',()=>{
-  for(const version of [1,2,3,5]){const g=ready();assert(recruitUnit(g,'ward'));g.fleet.version=version;assert.throws(()=>encodeSave(g),/함대 형식|방호정/);}
+  for(const version of [1,2,3,6]){const g=ready();assert(recruitUnit(g,'ward'));g.fleet.version=version;assert.throws(()=>encodeSave(g),/함대 형식|방호정/);}
   const g=ready();assert(recruitUnit(g,'ward'));assert(launchMission(g,'heart-1'));g.checkpoint.fleet.version=3;assert.throws(()=>encodeSave(g),/방호정/);
 });
 test('guard, queued orders, control groups and targeting restore exactly and abandoning restores the paid ward checkpoint',()=>{

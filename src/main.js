@@ -381,10 +381,10 @@ const fleetHelp=document.createElement('div');fleetHelp.className='fleet-help';f
 fleetHelp.insertAdjacentHTML('beforeend','<p>선택 모드에서 아군을 두 번 클릭하면 화면 안의 같은 선종을 선택합니다. 함대 카드의 함선 이름을 Ctrl+클릭하거나 키보드로 Ctrl+Enter를 누르면 떨어져 있는 같은 선종 전체를 선택합니다. Shift를 함께 누르면 기존 선택에 추가합니다. 선택은 명령·예약·전대 편성을 바꾸지 않습니다.</p>');
 fleetHelp.insertAdjacentHTML('beforeend','<p>해역 수호자도 가까운 함대를 노립니다. 붉은 공격 예고는 준비를 시작한 위치에 고정됩니다. 함대를 이동·분산해 피하거나 비상 보호막으로 피해를 줄이세요. 격벽 보강 연구도 섬·함대·호위선에 함께 적용됩니다.</p>');
 fleetHelp.insertAdjacentHTML('beforeend','<p>완성 해도2개·다섯 번째 해역·조선소4단계로 방호정을 생산합니다. 주변 아군·섬·호위선의 피해를22% 줄이며 범위는 기본10m, 강화마다0.5m 늘어납니다. 자신은 보호하지 않고 여러 방호·보호막은 가장 강한 효과 하나만 적용합니다. 분산 대형에서는 범위를 확인하세요. 확산/집중 개장은 범위와 경감률을 교환합니다.</p>');
-fleetHelp.insertAdjacentHTML('beforeend','<p>함대 탭에서 공격 함선을 선택한 뒤 자동 사격 우선순위를 바꾸세요. 가까운 적·지원 적·장갑 적·손상 적에 선종과 개장을 맞출 수 있습니다. 사수·섬/아군 호위·공격 이동에 적용하며, 직접 지정한 집중 공격·예약과 정비정 수리는 유지됩니다. 기본 대응으로 기존 폭발·지원 적 우선을 되돌립니다.</p>');
+fleetHelp.insertAdjacentHTML('beforeend','<p>함대 탭에서 공격 함선을 선택한 뒤 자동 사격 우선순위를 바꾸세요. 가까운 적·지원 적·장갑 적·손상 적에 선종과 개장을 맞출 수 있습니다. 동력망 방침은 살아 있는 기지에 전력을 공급하는 동력기를 먼저 끊고 지휘핵·방어탑을 제압합니다. 적 정보창에서 현재 공급 대상을 확인하세요. 사수·섬/아군 호위·공격 이동에 적용하며, 직접 지정한 집중 공격·예약과 정비정 수리는 유지됩니다. 기본 대응으로 기존 폭발·지원 적 우선을 되돌립니다.</p>');
 $('help-overlay').querySelector('.help-dialog>p').textContent='캠페인은 자동 저장되며 이어하기와 저장 파일 내보내기를 지원합니다. 비교 훈련은 저장되지 않습니다.';
 fleetHelp.insertAdjacentHTML('beforeend','<p>5–9번으로 전대를 선택하고 Ctrl+숫자로 등록합니다. Ctrl+Shift+숫자는 편성에 추가, Shift+숫자는 현재 선택에 추가합니다. 같은 번호를 두 번 누르면 전대 시점으로 이동합니다. 전대도 캠페인에 저장되며 능력은 기존 1–4번을 사용합니다.</p>');
-fleetHelp.insertAdjacentHTML('beforeend','<p>Shift+우클릭으로 이동·공격 명령을 최대 8개 예약하세요. X를 켜고 Shift+우클릭하면 공격 이동을 예약합니다. 선택한 함대의 경로와 목적지가 바다에 표시됩니다. 일반 우클릭은 새 명령으로 교체하고, H 사수·G 호위는 예약을 지웁니다. 예약 명령도 자동 저장됩니다.</p>');
+fleetHelp.insertAdjacentHTML('beforeend','<p>Shift+우클릭으로 이동·공격 명령을 최대 8개 예약하세요. X를 켜고 우클릭하면 적·아군 몸체 위에서도 해당 위치로 공격 이동합니다. Shift를 함께 누르면 공격 이동을 예약합니다. 선택한 함대의 경로와 목적지가 바다에 표시됩니다. 일반 우클릭은 새 명령으로 교체하고, H 사수·G 호위는 예약을 지웁니다. 예약 명령도 자동 저장됩니다.</p>');
 $('fleet-panel').querySelector('.board-help').textContent+=' Shift+우클릭: 이동·공격 예약(최대 8개). H/G: 예약 취소.';
 fleetHelp.insertAdjacentHTML('beforeend','<p>함선을 선택하고 다른 아군 배에 우클릭하면 그 배를 따라가며 호위합니다. 함대 카드의 «선택 함대로 이 배 호위» 버튼도 사용할 수 있습니다. 정비정은 이동하며 주변 손상 아군을 복구하고 전투 함선은 이미 교전 중인 적에게만 사격합니다. 아군 호위는 예약을 지우며 H/G로 사수·섬 호위로 돌아옵니다. 하늘색 원은 호위 대상입니다.</p>');
 $('fleet-panel').querySelector('.board-help').textContent+=' 아군 우클릭: 해당 배 호위(예약 취소). 정비정을 전투 함선에 붙여 지원하세요.';
@@ -392,7 +392,15 @@ let rightDrag = null,selectionDrag=null;
 const canvas = view?.renderer.domElement;
 canvas?.addEventListener('pointerdown', e => {
   if(!ui.started||game.paused||game.phase!=='playing')return;
-  if(e.button===2&&ui.commandMode&&!e.altKey){const hit=view.pickCombat(e.clientX,e.clientY),point=view.pointAt(e.clientX,e.clientY);if(hit?.enemy){inspectEnemy(hit.enemy);issueOrder('attack',{id:hit.enemy},e.shiftKey);}else if(hit?.unit&&!e.shiftKey)issueOrder('guard',{id:hit.unit});else if(point)issueOrder(ui.attackMove?'attackMove':'move',point,e.shiftKey);return;}
+  if(e.button===2&&ui.commandMode&&!e.altKey){
+    const point=view.pointAt(e.clientX,e.clientY);
+    if(ui.attackMove){if(point)issueOrder('attackMove',point,e.shiftKey);return;}
+    const hit=view.pickCombat(e.clientX,e.clientY);
+    if(hit?.enemy){inspectEnemy(hit.enemy);issueOrder('attack',{id:hit.enemy},e.shiftKey);}
+    else if(hit?.unit&&!e.shiftKey)issueOrder('guard',{id:hit.unit});
+    else if(point)issueOrder('move',point,e.shiftKey);
+    return;
+  }
   if (e.button === 2 || e.button===1) { rightDrag = e.clientX; canvas.setPointerCapture(e.pointerId); }
   else if(e.button===0&&ui.commandMode){selectionDrag={x:e.clientX,y:e.clientY,shift:e.shiftKey};canvas.setPointerCapture(e.pointerId);}
   else if (e.button === 0) {const hit=!ui.tool&&game.campaign?view.pickCombat(e.clientX,e.clientY):null;if(hit?.enemy){inspectEnemy(hit.enemy);return;} const tile = view.pick(e.clientX, e.clientY,ui.tool); if (tile) chooseTile(tile.x, tile.z,ui.tool==='wall'||(ui.tool==='move'&&game.facilities.find(f=>f.id===ui.moving)?.type==='wall')?tile.edge:undefined,tile.facilityId); else { ui.selected = null; update(true); } }

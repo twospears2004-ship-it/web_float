@@ -33,13 +33,14 @@ function validateAtlas(c){
 }
 function validateFleet(fleet) {
   if(fleet===undefined)return; // Saves from before the fleet expansion remain valid.
-  check([1,2,3,4].includes(fleet?.version)&&integer(fleet.nextId,1,1000001)&&Array.isArray(fleet.units)&&fleet.units.length<=fleetRules.maximum,'함대 형식 또는 정원이 올바르지 않습니다.');
+  check([1,2,3,4,5].includes(fleet?.version)&&integer(fleet.nextId,1,1000001)&&Array.isArray(fleet.units)&&fleet.units.length<=fleetRules.maximum,'함대 형식 또는 정원이 올바르지 않습니다.');
   const ids=new Set();
   for(const u of fleet.units) {
     check(integer(u.id,1,fleet.nextId-1)&&!ids.has(u.id)&&Object.hasOwn(unitTypes,u.type)&&integer(u.level,1,6),'함대 식별자 또는 선종이 올바르지 않습니다.');ids.add(u.id);
-    check(u.type!=='ward'||fleet.version===4,'방호정이 포함된 함대 형식을 복원할 수 없습니다.');
+    check(u.type!=='ward'||fleet.version>=4,'방호정이 포함된 함대 형식을 복원할 수 없습니다.');
     check(u.refit===undefined||fleet.version>=2&&typeof u.refit==='string'&&Object.hasOwn(unitRefits,u.refit)&&unitRefits[u.refit].type===u.type,'함대 개장 장비가 올바르지 않습니다.');
     check(u.targeting===undefined||fleet.version>=3&&armedUnit(u)&&typeof u.targeting==='string'&&u.targeting!=='auto'&&Object.hasOwn(fleetTargetingModes,u.targeting),'함대 자동 사격 우선순위가 올바르지 않습니다.');
+    check(u.targeting!=='power'||fleet.version===5,'동력망 사격에 필요한 함대 형식이 올바르지 않습니다.');
     check(position(u,110)&&finite(u.maxHp,1,10000)&&finite(u.hp,0,u.maxHp)&&finite(u.heading,-Math.PI,Math.PI)&&finite(u.aim,-Math.PI,Math.PI)&&finite(u.cooldown,0,10)&&finite(u.repath,0,1),'함대 전투 상태가 올바르지 않습니다.');
     check(u.command&&['move','attackMove','attack','hold','escort','guard'].includes(u.command.type),'함대 명령을 복원할 수 없습니다.');
     if(['move','attackMove'].includes(u.command.type))check(position(u.command,110),'함대 이동 목표가 올바르지 않습니다.');
@@ -168,7 +169,7 @@ export function validateCampaign(g) {
 }
 // Old engines must refuse new control research or pursuit tactics instead of
 // silently discarding them. Unresearched saves retain their former envelope.
-const requiredSaveVersion=g=>g.enemies.some(e=>Object.hasOwn(e,'controlSlows'))?4:Object.hasOwn(g.campaign.tech,'cryodynamics')?3:g.operation?.siegeVersion===2||g.enemies.some(e=>e.type==='raider')?2:1;
+const requiredSaveVersion=g=>g.fleet?.version===5||g.checkpoint?.fleet?.version===5?5:g.enemies.some(e=>Object.hasOwn(e,'controlSlows'))?4:Object.hasOwn(g.campaign.tech,'cryodynamics')?3:g.operation?.siegeVersion===2||g.enemies.some(e=>e.type==='raider')?2:1;
 export function encodeSave(g) {
   validateCampaign(g);
   const payload = JSON.parse(JSON.stringify({ ...g, events: [], accumulator: 0 }));
@@ -178,7 +179,7 @@ export function encodeSave(g) {
 export function decodeSave(text) {
   check(typeof text === 'string' && text.length <= 1000000, '저장 파일이 너무 큽니다.');
   const envelope = JSON.parse(text);
-  check(envelope.format === 'tidehold-campaign' && [1,2,3,4].includes(envelope.version) && checksum(JSON.stringify(envelope.payload)) === envelope.checksum, '저장 파일이 손상되었거나 지원되지 않습니다.');
+  check(envelope.format === 'tidehold-campaign' && [1,2,3,4,5].includes(envelope.version) && checksum(JSON.stringify(envelope.payload)) === envelope.checksum, '저장 파일이 손상되었거나 지원되지 않습니다.');
   const g = envelope.payload; validateCampaign(g);
   check(envelope.version===requiredSaveVersion(g),'연구·편대 기능에 필요한 저장 형식이 올바르지 않습니다. 최신 실행판에서 복원하세요.');
   migrateAtlas(g.campaign);

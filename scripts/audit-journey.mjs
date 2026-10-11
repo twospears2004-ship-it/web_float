@@ -29,6 +29,7 @@ const fleetRefits=process.argv.includes('--fleet-refits');
 const fleetPriorities=process.argv.includes('--fleet-priorities');
 const fleetWards=process.argv.includes('--fleet-wards');
 const fieldControl=process.argv.includes('--field-control');
+const powerTargeting=process.argv.includes('--power-targeting');
 const requestedOutput=process.argv.find(a=>a.startsWith('--output='))?.slice(9) || 'artifacts',outputPath=path.resolve(requestedOutput),relativeOutput=path.relative(path.resolve('artifacts'),outputPath);
 if(relativeOutput==='..'||relativeOutput.startsWith(`..${path.sep}`)||path.isAbsolute(relativeOutput))throw new Error('Journey output must stay inside artifacts.');
 const output=path.relative(process.cwd(),outputPath).split(path.sep).join('/');
@@ -38,6 +39,7 @@ report.supportGuard=supportGuard;report.fleetRefits=fleetRefits;report.outlays={
 report.fleetPriorities=fleetPriorities;report.fleetPriorityChanges=0;
 report.fleetWards=fleetWards;report.wardProduction=0;
 if(fieldControl)report.fieldControl={research:[],materials:0,points:0};
+if(powerTargeting)report.powerTargeting={changes:0,attackMoveOrders:0};
 await fs.mkdir(`${output}/journey-fixtures`,{recursive:true});
 const itinerary=Array.from({length:12},(_,chapter)=>[
   ...missions.filter(m=>m.chapter===chapter).map(item=>({item,kind:'story'})),
@@ -142,8 +144,9 @@ function prepareFleet(){
   for(const u of g.fleet.units)while(g.resources>400&&spend('fleetUpgrade',()=>upgradeUnit(g,u.id))){}
   if(fleetRefits)for(const u of g.fleet.units){const id=u.type==='ward'?(chapter>=9?'focusedWard':'wideWard'):(g.campaign.chapter>=8?{skiff:'screen',gunboat:'barrage',torpedo:'evasion',tender:'intensive'}:{skiff:'scout',gunboat:'artillery',torpedo:'penetrator',tender:'remote'})[u.type],state=unitRefitState(g,u,id);if(state.available&&g.resources>=state.cost+150)spend('fleetRefit',()=>refitUnit(g,u.id,id));}
   // An optional modeled player strategy uses the same public domain action as
-  // the fleet panel. Explicit attacks, economy and repair orders stay identical.
-  if(fleetPriorities)for(const u of g.fleet.units){const mode={skiff:'nearest',gunboat:'support',torpedo:'armored'}[u.type];if(u.hp>0&&mode&&setFleetTargeting(g,[u.id],mode))report.fleetPriorityChanges++;}
+  // the fleet panel. The optional power strategy also delegates siege torpedoes
+  // to attack-move; existing strategies, economy and repair orders stay identical.
+  if(fleetPriorities)for(const u of g.fleet.units){const mode=powerTargeting&&g.operation?.kind==='siege'&&u.type==='torpedo'?'power':{skiff:'nearest',gunboat:'support',torpedo:'armored'}[u.type];if(u.hp>0&&mode&&setFleetTargeting(g,[u.id],mode)){report.fleetPriorityChanges++;if(mode==='power')report.powerTargeting.changes++;}}
 }
 function guardSupport(){
   if(!supportGuard)return;
@@ -201,6 +204,7 @@ async function frontier(d){
   prepareColony();prepareFleet();
   if(d.kind==='defense')for(const t of g.tiles)for(const [edge,s]of Object.entries(wallEdges))if(!g.tiles.some(v=>v.x===t.x+s.dx&&v.z===t.z+s.dz)&&validWallSlot(g,t.x,t.z,edge)&&g.resources>200)build(g,'wall',t.x,t.z,edge);
   if(!launchDefense(g,d.id)){report.blocked={id:d.id,message:g.message};return false;}
+  if(powerTargeting&&d.kind==='siege')for(const u of g.fleet.units)if(u.hp>0&&u.type==='torpedo'&&setFleetTargeting(g,[u.id],'power'))report.powerTargeting.changes++;
   let lastOrder='',lastNode=null,lastKills=g.kills,quietSeconds=0;
   for(let frame=0;frame<3600*60&&g.phase==='playing';frame++){
     choose();
@@ -225,7 +229,11 @@ async function frontier(d){
         }
       }else{
         const target=d.kind==='siege'?g.enemies.find(e=>e.hp>0&&e.type==='generator')||g.enemies.find(e=>e.hp>0&&e.type==='baseCore'):g.enemies.find(e=>e.hp>0&&['nest','tender','bulwark','carrier'].includes(e.type))||g.enemies.find(e=>e.hp>0);
-        if(target&&target.id!==lastOrder){orderUnits(g,g.fleet.units.filter(u=>u.hp>0&&u.type!=='tender'&&(!fleetWards||u.type!=='ward')).map(u=>u.id),'attack',{id:target.id});lastOrder=target.id;}
+        if(target&&target.id!==lastOrder){
+          orderUnits(g,g.fleet.units.filter(u=>u.hp>0&&u.type!=='tender'&&(!fleetWards||u.type!=='ward')&&!(powerTargeting&&d.kind==='siege'&&u.type==='torpedo')).map(u=>u.id),'attack',{id:target.id});
+          if(powerTargeting&&d.kind==='siege'){const ids=g.fleet.units.filter(u=>u.hp>0&&u.type==='torpedo').map(u=>u.id);if(ids.length&&orderUnits(g,ids,'attackMove',target))report.powerTargeting.attackMoveOrders++;}
+          lastOrder=target.id;
+        }
         if(d.kind==='explore'&&!target&&g.campaign.encounterWave+1>=g.catalog[lastNode].waves&&lastOrder!==`scan-${lastNode}`){if(alive().length)orderUnits(g,alive(),'move',g.catalog[lastNode]);else setRoute(g,g.catalog[lastNode].id);lastOrder=`scan-${lastNode}`;}
       }
       abilities();

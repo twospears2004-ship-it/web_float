@@ -56,7 +56,7 @@ export function unitRecruitState(g,type){
 export function recruitUnit(g,type) {
   const stats=unitTypes[type],state=unitRecruitState(g,type);if(!state.available)return deny(g,state.reason);
   g.fleet ||= emptyFleet();g.fleet.units=g.fleet.units.filter(u=>u.hp>0);pruneControlGroups(g.fleet);g.resources-=stats.cost;
-  if(type==='ward')g.fleet.version=4;
+  if(type==='ward')g.fleet.version=Math.max(4,g.fleet.version);
   const occupied=g.fleet.units.map(other=>({...other,radius:unitTypes[other.type].radius}));
   const u={id:g.fleet.nextId++,type,level:1,hp:stats.hp,maxHp:stats.hp,...anchor(g,g.fleet.units.length,g.fleet.units.length+1,occupied),heading:0,aim:0,cooldown:0,command:{type:'escort'},waypoints:[],repath:0};
   g.fleet.units.push(u);emit(g,{type:'build',x:u.x,z:u.z});g.message=`${stats.name} 출동 준비. 클릭·드래그로 선택하고 우클릭으로 지휘하세요.`;return true;

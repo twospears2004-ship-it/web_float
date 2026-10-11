@@ -36,3 +36,23 @@ test('mobile contacts display genuine immobilization even when the current calcu
   const {g,enemy,ui}=ready();enemy.slowSeconds=1.2;enemy.slowFactor=0;const before=structuredClone(g);
   assert.equal(enemyStats(g,enemy).speed,0);assert.match(inspectedContact(g,ui).support,/이동 둔화 100% · 1.2초/);assert.deepEqual(g,before);
 });
+
+test('generator inspection counts only actual split/shared live recipients and does not mutate the battle',()=>{
+  const {g,ui}=ready();g.enemies=[
+    {id:'source',type:'generator',siteId:'dock',powerLink:true,powerBus:'west',hp:100,maxHp:100,x:0,z:0},
+    {id:'west',type:'baseCore',siteId:'dock',powerBus:'west',hp:100,maxHp:100,x:40,z:0},
+    {id:'shared',type:'baseCore',siteId:'dock',powerBus:'shared',hp:100,maxHp:100,x:50,z:0},
+    {id:'east',type:'baseCore',siteId:'dock',powerBus:'east',hp:100,maxHp:100,x:2,z:0},
+    {id:'west-tower',type:'gunTower',siteId:'dock',powerBus:'west',hp:100,maxHp:100,x:40,z:4},
+  ];ui.inspectedEnemy='source';const before=structuredClone(g);assert.match(inspectedContact(g,ui).support,/송전 · 지휘핵 2기 · 방어탑 1기/);assert.deepEqual(g,before);
+  g.enemies[1].captured=true;g.enemies[2].siteId='other';g.enemies[4].hp=0;assert.match(inspectedContact(g,ui).support,/전력을 공급할 기지 없음/);
+});
+
+test('core inspection follows live supply count and the same actual powered stats after captured and destroyed generators',()=>{
+  const {g,ui}=ready();g.enemies=[
+    {id:'source-a',type:'generator',siteId:'dock',powerLink:true,powerBus:'west',hp:100,maxHp:100,x:40,z:0},
+    {id:'source-b',type:'generator',siteId:'dock',powerLink:true,powerBus:'east',hp:100,maxHp:100,x:-40,z:0},
+    {id:'core',type:'baseCore',siteId:'dock',powerBus:'shared',hp:100,maxHp:100,x:0,z:0},
+  ];ui.inspectedEnemy='core';const before=structuredClone(g),powered=inspectedContact(g,ui);assert.match(powered.support,/동력기 공급 2곳/);assert.deepEqual(g,before);
+  g.enemies[0].captured=true;assert.match(inspectedContact(g,ui).support,/동력기 공급 1곳/);g.enemies[1].hp=0;const none=inspectedContact(g,ui);assert.match(none.support,/동력기 공급 0곳/);assert(none.stats.armor<powered.stats.armor);assert.deepEqual(none.stats,enemyStats(g,g.enemies[2]));
+});
