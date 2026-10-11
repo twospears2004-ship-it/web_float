@@ -21,7 +21,7 @@ async function saveReloadRollback(page,player,departure,prefix,expectedPower){
   await page.keyboard.press('p');
   await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));await page.clock.resume();await page.reload({waitUntil:'domcontentloaded'});await page.locator('#continue-button').click();
   expect(canonicalSavedValue((await player.state()).enemies)).toEqual(canonicalSavedValue(g.enemies));expect((await player.state()).fleet.groups).toEqual(g.fleet.groups);await expect(page.locator('#scene-title')).toHaveText(getSiege(g.operation.id).name);if(expectedPower)await expect(page.locator('#mission-progress')).toContainText(expectedPower);await page.screenshot({path:`artifacts/${prefix}-reload.png`});
-  await page.locator('#resume-button').click();await player.tab('voyage');await page.locator('#home-button').click();const back=await player.state();
+  await page.locator('#resume-button').click();await player.tab('voyage');await page.locator('#home-button').click();await page.locator('#confirm-return').click();const back=await player.state();
   expect(back.campaign.stage).toBe('harbor');expect(back.resources).toBe(departure.resources);expect(back.fleet.units.map(u=>({id:u.id,hp:u.hp,level:u.level}))).toEqual(departure.fleet.units.map(u=>({id:u.id,hp:u.hp,level:u.level})));expect(back.fleet.groups).toEqual(departure.fleet.groups);
   await expect(page.locator('#scene-title')).toHaveText('나의 섬, 다음 항해.');
 }

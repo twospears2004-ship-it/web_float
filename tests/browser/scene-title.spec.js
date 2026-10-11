@@ -11,7 +11,7 @@ test('campaign heading follows the real mission through mode change, reload and 
   const g=await state(page);expect(g.mode).toBe('direct');expect(g.campaign.stage).toBe('mission');expect(g.campaign.missionId).toBe('coral-1');
   await page.keyboard.press('p');await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));
   await page.reload({waitUntil:'domcontentloaded'});await page.locator('#continue-button').click();await expect(page.locator('#scene-title')).toHaveText(name);await expect(page.locator('#pause-overlay')).toBeVisible();
-  await page.locator('#resume-button').click();await page.locator('[data-tab="voyage"]').click();await page.locator('#home-button').click();
+  await page.locator('#resume-button').click();await page.locator('[data-tab="voyage"]').click();await page.locator('#home-button').click();await page.locator('#confirm-return').click();
   const back=await state(page);expect(back.campaign.stage).toBe('harbor');expect(back.campaign.completed).toEqual([]);expect(back.resources).toBe(g.checkpoint.resources);await expect(page.locator('#scene-title')).toHaveText('나의 섬, 다음 항해.');
   expect(errors).toEqual([]);
 });

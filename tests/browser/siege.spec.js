@@ -40,6 +40,6 @@ test('active raid reload preserves physical targets and orders; abandon restores
   await page.keyboard.press('p');await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));const saved=await snapshot(page);
   await page.clock.resume();await page.reload();await page.locator('#continue-button').click();const restored=await snapshot(page);
   expect(restored.operation).toEqual(saved.operation);expect(restored.enemies).toEqual(saved.enemies);expect(restored.fleet).toEqual(saved.fleet);
-  await page.locator('#resume-button').click();await page.locator('[data-tab="voyage"]').click();await page.locator('#home-button').click();const harbor=await snapshot(page);
+  await page.locator('#resume-button').click();await page.locator('[data-tab="voyage"]').click();await page.locator('#home-button').click();await page.locator('#confirm-return').click();const harbor=await snapshot(page);
   expect(harbor.campaign.stage).toBe('harbor');expect(harbor.resources).toBe(departure.resources);expect(harbor.fleet.units.map(u=>u.hp)).toEqual(departure.fleet.units.map(u=>u.hp));expect(harbor.campaign.frontier.cleared).not.toContain('siege-coral-1');expect(errors).toEqual([]);
 });

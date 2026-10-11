@@ -34,7 +34,7 @@ try{
     assert.equal((await state()).operation.kind,kind);await page.keyboard.press('f');
     if(kind==='explore')await page.locator('[data-site="explore-node-0"]').click();else await page.locator('#start-defense-wave').click();
     await page.waitForTimeout(seconds*1000);const inBattle=await render();
-    await page.locator('#home-button').click();assert.equal((await state()).campaign.stage,'harbor');await page.waitForTimeout(1000);
+    await page.locator('#home-button').click();await page.locator('#confirm-return').click();assert.equal((await state()).campaign.stage,'harbor');await page.waitForTimeout(1000);
     samples.push({kind,inBattle,returned:await render(),resources:(await state()).resources});
   }
   // Warm all terrain, marker and unit variants before comparing like scenes.

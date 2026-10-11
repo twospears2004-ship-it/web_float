@@ -98,6 +98,7 @@ app.innerHTML = `
   <div id="help-overlay" class="overlay" hidden><div class="compact-dialog help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title"><span class="eyebrow">FIELD NOTES</span><h2 id="help-title">항해 안내</h2><dl><dt>실시간 조종</dt><dd>WASD / 방향키로 이동. W·↑는 지도 북쪽입니다. 전투 중 이동도 가능합니다.</dd><dt>목적지 선택</dt><dd>탐험 항로에서 출항. 자동 항해 후 위치를 고정하고 싸웁니다. 교전 중 다른 목적지로 떠날 수 없습니다.</dd><dt>섬 정비</dt><dd>시설 선택 → 빈 타일 클릭. 확장은 황금빛 가장자리 타일을 선택하세요. 기존 시설을 선택하면 강화·무료 재배치·철거가 가능합니다.</dd><dt>자동 전투</dt><dd>무장은 자신의 위치에서 사거리 내 적을 자동 공격합니다. 처치 즉시 자원을 받습니다. 전투·자동 항해 중 정비는 잠깁니다.</dd><dt>시점과 반복</dt><dd>휠로 확대·축소, 마우스 오른쪽 드래그로 회전. P 일시정지, Esc 배치 취소 또는 일시정지. 다시 시작은 자원·섬·적을 모두 초기화합니다.</dd></dl><p>저장은 없는 비교용 프로토타입입니다. 새로고침하면 시작 화면으로 돌아옵니다.</p><button id="close-help" class="primary-button">알겠습니다</button></div></div>
   <div id="replace-overlay" class="overlay" hidden><div class="compact-dialog" role="dialog" aria-modal="true" aria-labelledby="replace-title"><span class="eyebrow">NEW VOYAGE</span><h2 id="replace-title">새 캠페인을 시작할까요?</h2><p>현재 저장한 캠페인이 새 항해로 교체됩니다. 계속 진행하려면 돌아가서 이어하기를 선택하세요.</p><button id="confirm-new" class="primary-button">새 캠페인 시작</button><button id="cancel-new" class="secondary-button">돌아가기</button></div></div>
   <div id="settings-overlay" class="overlay" hidden><div class="compact-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title"><span class="eyebrow">MAKE IT YOUR SEA</span><h2 id="settings-title">소리와 화면</h2><label class="settings-row">효과음 <input id="effects-volume" type="range" min="0" max="1" step="0.05" /></label><label class="settings-row">배경음 <input id="music-volume" type="range" min="0" max="1" step="0.05" /></label><label class="settings-row">그래픽 <select id="graphics-quality"><option value="standard">표준 · 그림자</option><option value="low">가볍게 · 그림자 끄기</option></select></label><p>음향은 이 게임에서 합성합니다. 볼륨 0은 음소거입니다. 설정은 이 브라우저에 저장됩니다.</p><button id="close-settings" class="primary-button">항해로 돌아가기</button></div></div>
+  <div id="return-overlay" class="overlay" hidden><div class="compact-dialog" role="dialog" aria-modal="true" aria-labelledby="return-title"><span class="eyebrow">RETURN TO HARBOR</span><h2 id="return-title">이번 원정을 포기할까요?</h2><p>이번 원정의 자원·시설·함대 상태를 출항 전으로 되돌립니다. 미완료 임무·조사는 완료 처리되지 않습니다. 현재 진행은 자동 저장되므로 나중에 이어서 할 수도 있습니다.</p><button id="cancel-return" class="primary-button">계속 원정하기</button><button id="confirm-return" class="secondary-button">원정 포기 · 출항 전 상태로 복귀</button></div></div>
 `;
 const $ = (id) => document.getElementById(id);
 $('campaign-panel').insertAdjacentHTML('beforeend','<div id="frontier-panel"><h3>기지 방어 작전</h3><p class="board-help">시설마다 개별 내구도가 있습니다. 성벽으로 생산 시설을 가리고 함대를 배치하세요. 새 해역의 공세와 방어 기록이 열립니다.</p><div id="defense-list"></div><h3>함대 기지 공략</h3><p class="board-help">조선소와 함대가 필요합니다. 동력망과 지휘핵을 공략해 세 거점을 확보하세요. 보급 창고는 추가 자원입니다.</p><div id="siege-list"></div></div>');
@@ -148,6 +149,7 @@ function installGame(next, tab = 'build') {
   ui.lastGroup=null;
   $('start-overlay').hidden = true; $('end-overlay').hidden = true; $('pause-overlay').hidden = true; $('help-overlay').hidden = true;
   $('replace-overlay').hidden = true; showTab(tab); update(true); $('pause-button').focus();
+  $('return-overlay').hidden=true;
   document.querySelector('.sidebar').scrollTop=0;
 }
 function start(mode, confirmed = false) {
@@ -162,7 +164,7 @@ function start(mode, confirmed = false) {
 function clearTool() { ui.tool = null; ui.moving = null; update(true); }
 function openModes() { game.paused = true; ui.modeSwitch = !!game.campaign && ui.started; keys.clear(); saved = loadCampaign(); $('continue-button').hidden = !saved.game; $('beginner-start').hidden=ui.modeSwitch; $('start-overlay').hidden = false; $('pause-overlay').hidden = true; $('end-overlay').hidden = true; document.querySelector('.comparison-note').innerHTML=ui.modeSwitch?'섬 · 자원 · 임무 진행을 유지합니다.<br/>이동 방식만 변경합니다.':'같은 초기 섬 · 같은 적 배치 · 같은 보상<br/>모드 선택 시 새 원정으로 시작합니다.'; document.querySelector('[data-start]').focus(); }
 function togglePause(force) {
-  if (!ui.started || game.phase !== 'playing' || !$('start-overlay').hidden || !$('help-overlay').hidden || !$('settings-overlay').hidden) return;
+  if (!ui.started || game.phase !== 'playing' || !$('start-overlay').hidden || !$('help-overlay').hidden || !$('settings-overlay').hidden || !$('return-overlay').hidden) return;
   game.paused = force ?? !game.paused; keys.clear(); $('pause-overlay').hidden = !game.paused; update(true);
   (game.paused ? $('resume-button') : $('pause-button')).focus();
 }
@@ -219,7 +221,9 @@ for (const id of ['mode-button', 'pause-mode']) $(id).addEventListener('click', 
 $('compare-button').addEventListener('click', () => { if (game.campaign) { returnToHarbor(game, game.phase === 'defeat'); installGame(game, 'campaign'); persist(); } else openModes(); });
 document.querySelector('.brand').addEventListener('click', e => { e.preventDefault(); openModes(); });
 $('show-voyage').addEventListener('click', () => showTab(game.campaign?.stage === 'harbor' ? 'campaign' : 'voyage'));
-$('home-button').addEventListener('click', () => { if (game.campaign) { returnToHarbor(game, true); installGame(game, 'campaign'); persist(); return; } ui.trackedSite = 'home'; if (game.mode === 'destination') setRoute(game, 'home'); else game.message = '정박지는 지도에서 집 모양으로 표시됩니다. 직접 이동하세요.'; clearTool(); update(true); });
+$('home-button').addEventListener('click', () => { if (game.campaign) { ui.returnWasPaused=game.paused;game.paused=true;keys.clear();$('return-overlay').hidden=false;update(true);$('cancel-return').focus();return; } ui.trackedSite = 'home'; if (game.mode === 'destination') setRoute(game, 'home'); else game.message = '정박지는 지도에서 집 모양으로 표시됩니다. 직접 이동하세요.'; clearTool(); update(true); });
+$('cancel-return').addEventListener('click',()=>{$('return-overlay').hidden=true;game.paused=ui.returnWasPaused;update(true);$('home-button').focus();});
+$('confirm-return').addEventListener('click',()=>{if($('return-overlay').hidden||!game.campaign)return;returnToHarbor(game,true);installGame(game,'campaign');persist();});
 $('help-button').addEventListener('click', () => { ui.helpWasPaused = game.paused; game.paused = true; keys.clear(); $('help-overlay').hidden = false; $('close-help').focus(); });
 $('close-help').addEventListener('click', () => { $('help-overlay').hidden = true; game.paused = ui.helpWasPaused; $('help-button').focus(); });
 $('tile-board').addEventListener('click', e => { const b = e.target.closest('[data-tile],[data-wall-edge]'); if (b) chooseTile(Number(b.dataset.x), Number(b.dataset.z), b.dataset.wallEdge); });
@@ -629,6 +633,7 @@ function update(force = false) {
   $('repair-button').disabled = !manageable || game.resources < rules.repairCost || game.hull >= game.maxHull;
   $('home-button').textContent = game.campaign ? '임무 포기 · 출항 전 상태로 정박지 복귀' : '⌂ 정박지로 귀환';
   $('home-button').disabled = game.campaign ? !['mission','operation'].includes(game.campaign.stage) || game.paused : game.mode === 'destination' && (game.combat || !!game.route || distance(game.island, { x: 0, z: 0 }) < 1);
+  $('home-button').textContent=game.campaign?'원정 포기 · 출항 전 상태로':'⌂ 정박지로 귀환';
   for (const s of sites) {
     const cleared = game.sites.find(a => a.id === s.id).cleared, b = document.querySelector(`[data-site="${s.id}"]`);
     b.disabled = cleared || (game.mode === 'destination' && (game.combat || !!game.route));

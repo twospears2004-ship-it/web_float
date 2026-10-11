@@ -8,7 +8,7 @@ export function installDialogKeyboard(doc=document){
     const dialog=dialogs.filter(element=>!element.closest('[hidden]')&&element.getClientRects().length).at(-1);
     if(!dialog)return;
     if(event.key==='Escape'){
-      const close=dialog.querySelector('#close-settings,#close-help,#cancel-new');
+      const close=dialog.querySelector('#close-settings,#close-help,#cancel-new,#cancel-return');
       if(close){event.preventDefault();event.stopPropagation();if(!event.repeat)close.click();}
       return;
     }

@@ -31,7 +31,7 @@ test('new island fishery → real sailing catch → harvest once → upgrade →
 });
 test('earned late ship → replace workshop with farm/lab → three real objectives → crops and research',async({page})=>{
   test.setTimeout(600000);const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.clock.install();await page.goto('/');await page.locator('[data-start="destination"]').click();
-  await page.locator('#save-file').setInputFiles('artifacts/campaign-fixtures/heart-6-guardian.json');await page.locator('#resume-button').click();await low(page);await page.locator('[data-tab="voyage"]').click();await page.locator('#home-button').click();
+  await page.locator('#save-file').setInputFiles('artifacts/campaign-fixtures/heart-6-guardian.json');await page.locator('#resume-button').click();await low(page);await page.locator('[data-tab="voyage"]').click();await page.locator('#home-button').click();await page.locator('#confirm-return').click();
   let g=await snapshot(page);expect(g.campaign.stage).toBe('harbor');const old=g.facilities.find(f=>f.type==='workshop');
   await page.locator('[data-tab="build"]').click();await page.locator('#board-toggle').click();await page.locator(`[data-tile="${old.x},${old.z}"]`).click();await page.locator('[data-action="demolish"]').click();
   await page.locator('[data-tool="farm"]').click();await page.locator(`[data-tile="${old.x},${old.z}"]`).click();

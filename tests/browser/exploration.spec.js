@@ -24,7 +24,7 @@ test('earned destination exploration discovers branches, restores a choice and b
 test('earned direct exploration can choose a branch and abandon without retaining its unbanked loot',async({page})=>{
   test.setTimeout(360000);const errors=[];page.on('pageerror',e=>errors.push(e.message));const initial=await setup(page,'direct'),checkpoint=initial.checkpoint;
   await survey(page,0,'direct');await choose(page);await survey(page,2,'direct');await choose(page);const g=await snapshot(page);expect(g.campaign.decisions.map(d=>d.site)).toEqual([0,2]);await page.screenshot({path:'artifacts/exploration-direct.png'});
-  await page.locator('#home-button').click();const harbor=await snapshot(page);expect(harbor.campaign.stage).toBe('harbor');expect(harbor.resources).toBe(checkpoint.resources);expect(harbor.fleet.units.map(u=>[u.id,u.hp])).toEqual(checkpoint.fleet.units.map(u=>[u.id,u.hp]));expect(harbor.campaign.frontier.cleared).not.toContain('explore-coral-1');expect(errors).toEqual([]);
+  await page.locator('#home-button').click();await page.locator('#confirm-return').click();const harbor=await snapshot(page);expect(harbor.campaign.stage).toBe('harbor');expect(harbor.resources).toBe(checkpoint.resources);expect(harbor.fleet.units.map(u=>[u.id,u.hp])).toEqual(checkpoint.fleet.units.map(u=>[u.id,u.hp]));expect(harbor.campaign.frontier.cleared).not.toContain('explore-coral-1');expect(errors).toEqual([]);
 });
 test('banked exploration rejects malformed record imports and keeps the objective clear of its HUD',async({page})=>{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.clock.install();await page.goto('/');await page.locator('[data-start="destination"]').click();
