@@ -1,5 +1,5 @@
 import {enemyStats} from './game.js';
-import {bossTactics,enemyTactics} from './campaign-content.js';
+import {campaignRules,bossTactics,enemyTactics} from './campaign-content.js';
 import {enemyProtector,enemyProtectionRadius,bulwarkWard,protectsEnemy,enemySupportRadius,enemyRepairRate,repairsEnemy,enemyReinforcement,raiderTarget} from './enemy-ai.js';
 import {unitTypes} from './fleet-content.js';
 import {slowDescription} from './enemy-control.js';
@@ -20,7 +20,7 @@ export function inspectedContact(g,ui) {
   const protectedCount=enemy.type==='bulwark'?g.enemies.filter(e=>protectsEnemy(enemy,e)).length:0;
   const repairRate=enemyRepairRate(g,stats),patients=repairRate?g.enemies.filter(e=>repairsEnemy(enemy,e)).length:0,reinforcement=enemyReinforcement(enemy,stats);
   const support=[];
-  const control=slowDescription(enemy);if(control)support.push(control);
+  const control=campaignRules.enemies[enemy.type].speed>0?slowDescription(enemy):'';if(control)support.push(control);
   if(enemy.type==='raider'){const target=raiderTarget(g,enemy,g.island,stats);support.push(!enemy.active?'교전 전 대기 · 지원선 추적24m':target?`측면 추적: ${unitTypes[target.type].name} #${target.id} · 지원선 추적24m`:'추적 범위 안 지원선 없음 · 가까운 위협 대응');}
   if(enemy.type==='bulwark')support.push(`방호 ${enemyProtectionRadius}m · ${enemy.active?`피해35% 경감 · 보호 ${protectedCount}기${ward?` · ${enemyStats(g,ward).name} 엄호`:''}`:'교전 전 대기'}`);
   else if(protector)support.push(`방호 해수 엄호 · 피해35% 경감 · ${enemyProtectionRadius}m 밖으로 분리하거나 방호 해수를 먼저 제압하세요.`);
