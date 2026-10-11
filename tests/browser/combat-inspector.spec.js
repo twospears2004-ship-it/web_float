@@ -2,12 +2,14 @@ import {test,expect} from '@playwright/test';
 import fs from 'node:fs/promises';
 const state=page=>page.evaluate(()=>window.__TIDEHOLD__.snapshot());
 async function ready(page,ships=2){
-  await page.clock.install();await page.goto('/');await page.locator('[data-start="direct"]').click();
+  // Freeze before loading the game. Computing a future pause time in one
+  // browser round trip and pausing in another can race under machine load.
+  await page.clock.install({time:new Date('2026-10-11T12:00:00Z')});await page.clock.pauseAt(new Date('2026-10-11T13:00:00Z'));await page.goto('/');await page.locator('[data-start="direct"]').click();
   await page.locator('#save-file').setInputFiles('artifacts/colony-fixtures/coral-6-harbor.json');await page.locator('#resume-button').click();
   await page.locator('#mode-button').click();await page.locator('[data-start="direct"]').click();
   if(ships){await page.locator('[data-tab="fleet"]').click();await page.locator('#build-shipyard').click();await page.locator('[data-tile="-1,0"]').click();await page.locator('[data-tab="fleet"]').click();for(let i=0;i<ships;i++)await page.locator('[data-recruit="skiff"]').click();await page.keyboard.press('f');}
   await page.locator('[data-tab="campaign"]').click();await page.locator('.chapter-list').first().locator('summary').click();await page.locator('[data-mission="coral-1"]').click();await page.clock.runFor(300);
-  const e=(await state(page)).enemies[0],r=await page.locator('#minimap').boundingBox();await page.mouse.click(r.x+(115+e.x*0.65)/230*r.width,r.y+(100+e.z*0.65)/180*r.height);await page.clock.runFor(1000);await page.clock.pauseAt(new Date(await page.evaluate(()=>Date.now()+1000)));return e;
+  const e=(await state(page)).enemies[0],r=await page.locator('#minimap').boundingBox();await page.mouse.click(r.x+(115+e.x*0.65)/230*r.width,r.y+(100+e.z*0.65)/180*r.height);await page.clock.runFor(1000);return e;
 }
 async function contactPoint(page,e){return page.evaluate(p=>window.__TIDEHOLD__.projectWorld({...p,y:0.6}),e);}
 

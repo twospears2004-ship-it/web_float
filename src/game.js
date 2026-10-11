@@ -4,7 +4,7 @@ import { campaignRules } from './campaign-content.js';
 import { closestHullPoint, hullDistance, separateFromHull } from './hull.js';
 import {onSailed,salvageBonus} from './production.js';
 import {tickFleet,threatenedUnit} from './fleet.js';
-import {steerEnemy,enemySupportRadius} from './enemy-ai.js';
+import {steerEnemy,enemySupportRadius,enemyProtector} from './enemy-ai.js';
 import {structureHull,defenseTarget} from './fortifications.js';
 import {structurePosition,validWallSlot,wallEdge} from './walls.js';
 import {afterDefenseTick} from './frontier.js';
@@ -177,7 +177,7 @@ export function setRoute(g, siteId) {
 }
 export function damageEnemy(g, enemy, amount) {
   if (enemy.hp <= 0 || enemy.captured) return;
-  if(g.campaign && enemy.type!=='bulwark' && g.enemies.some(e=>e.type==='bulwark'&&e.hp>0&&distance(e,enemy)<14))amount*=0.65;
+  if(enemyProtector(g,enemy))amount*=0.65;
   enemy.hp = Math.max(0, enemy.hp - amount);
   emit(g, { type: 'hit', x: enemy.x, z: enemy.z, amount });
   if (enemy.hp === 0 && !enemy.rewarded) {

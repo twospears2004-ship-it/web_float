@@ -58,7 +58,7 @@ test('repair enemies heal neighbors, and killing them removes that support',()=>
 });
 test('bulwark protection and carrier reinforcements affect actual combat with bounded spawns',()=>{
   const g=campaignAt(42);launchMission(g,'pearl-1');g.facilities=[];const first=g.enemies[0],second=g.enemies[1];
-  Object.assign(first,{type:'crawler',x:0,z:0,hp:500,maxHp:500});Object.assign(second,{type:'bulwark',x:5,z:0,hp:500,maxHp:500});g.enemies=[first,second];
+  Object.assign(first,{type:'crawler',x:0,z:0,hp:500,maxHp:500,active:true});Object.assign(second,{type:'bulwark',x:5,z:0,hp:500,maxHp:500,active:true});g.enemies=[first,second];
   damageEnemy(g,first,100);assert.equal(first.hp,435);damageEnemy(g,second,1e6);damageEnemy(g,first,100);assert.equal(first.hp,335);
   Object.assign(first,{type:'carrier',active:true,spawnTimer:0,spawnCount:0,x:26,z:0,hp:10000,maxHp:10000});g.enemies=[first];g.hull=g.maxHull=10000;
   run(g,55);assert.equal(first.spawnCount,3);assert.equal(g.enemies.filter(e=>e.type==='bomber').length,3);

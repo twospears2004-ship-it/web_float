@@ -43,7 +43,7 @@ app.innerHTML = `
       <div id="tool-tip" class="tool-tip" hidden></div>
       <div id="selection-box" class="selection-box" hidden></div>
       <div id="fleet-toolbar" class="fleet-toolbar" hidden><button id="command-toggle" aria-pressed="false">Q 함대 선택</button><span id="selection-count">선택 0</span><button data-order="escort" title="G · 섬 호위">호위</button><button data-order="hold" title="H · 위치 사수">사수</button><button id="attack-move" aria-pressed="false" title="X · 다음 우클릭으로 공격 이동">공격 이동</button><button id="fleet-focus" title="C · 선택 함대 / 섬 시점 전환">함대 시점</button></div>
-      <section id="contact-panel" class="contact-panel" hidden aria-labelledby="contact-name"><div class="contact-heading"><strong id="contact-name"></strong><button id="close-contact" aria-label="적 정보 닫기">×</button></div><p id="contact-health"></p><div class="meter"><i id="contact-hp"></i></div><p id="contact-stats"></p><p id="contact-tactic"></p><p id="contact-orders"></p><button id="attack-contact"></button><small>적 클릭: 정보 · 함대 선택 모드에서 우클릭: 공격<br>Shift+공격: 예약 · 주황색 원: 적용 사거리</small></section>
+      <section id="contact-panel" class="contact-panel" hidden aria-labelledby="contact-name"><div class="contact-heading"><strong id="contact-name"></strong><button id="close-contact" aria-label="적 정보 닫기">×</button></div><p id="contact-health"></p><div class="meter"><i id="contact-hp"></i></div><p id="contact-stats"></p><p id="contact-support" hidden></p><p id="contact-tactic"></p><p id="contact-orders"></p><button id="attack-contact"></button><small>적 클릭: 정보 · 함대 선택 모드에서 우클릭: 공격<br>Shift+공격: 예약 · 주황색 원: 사거리 · 청록색 원: 적 방호14m</small></section>
       <div class="map-panel"><div class="map-title"><span>해역 지도</span><small>고정 시나리오 01</small></div><canvas id="minimap" width="230" height="180" aria-label="정박지와 세 전투 위치 지도"></canvas><div class="map-legend"><span>● 나의 섬</span><span>◇ 미탐사</span><span>✓ 정리</span></div></div>
       <div class="sea-bottom"><div class="hint-key" id="controls-hint">W A S D 이동 <span>·</span> 휠 확대 <span>·</span> 타일 클릭 배치</div><button id="mode-button" class="glass-button">⇄ 이동 방식 비교</button></div>
       <div id="floating-label" class="floating-label" hidden></div>
@@ -656,6 +656,7 @@ function updateContact() {
   $('contact-health').textContent=`내구도 ${Math.ceil(enemy.hp)} / ${Math.ceil(enemy.maxHp)} · ${enemy.active?'교전 중':'대기 중'}`;
   $('contact-hp').style.width=`${enemy.hp/enemy.maxHp*100}%`;
   $('contact-stats').textContent=`장갑 ${Math.round(stats.armor*100)}% · 사거리 ${stats.range}m · ${stats.heal?`복구 ${stats.heal}`:`피해 ${Math.round(stats.damage*10)/10}`}`;
+  $('contact-support').hidden=!contact.support;$('contact-support').textContent=contact.support;
   $('contact-tactic').textContent=contact.hint||'주변 위협과 사거리를 확인하고 접근하세요.';
   $('contact-orders').textContent=`선택 ${selected.length}기 · 이 적 공격 ${attacking}기${queued?` · 예약 ${queued}기`:''}`;
   const button=$('attack-contact');button.textContent=selected.length?`선택 ${selected.length}기 집중 공격`:'함대를 먼저 선택하세요';button.disabled=!commandable;
