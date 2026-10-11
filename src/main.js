@@ -553,7 +553,7 @@ function updateFirstVoyage(){
   const armed=game.facilities.filter(f=>['cannon','mortar','rail','frost'].includes(f.type)).length>=2;
   const preparing=c.stage==='harbor',growing=preparing&&c.completed.length>0;
   $('first-voyage-title').textContent=growing?'3 · 보상으로 섬을 키우세요':preparing?'1 · 준비하고 첫 임무에 출항하세요':'2 · 적에게 접근하면 무장이 자동 공격합니다';
-  $('first-voyage-text').textContent=growing?'섬 정비에서 확장·농장을 선택해 자원을 투자하세요. 농장은 생산한 자원을 클릭해 회수합니다. 연구와 함대는 진행하면서 열립니다.':preparing?(armed?'무장이 준비됐습니다. 캠페인의 첫 번째 임무 카드를 눌러 출항하세요.':'추천: 박격포(자원 100)를 선택하고 배치도의 빈 타일을 클릭하세요. 기존 연사포만으로 바로 출항해도 됩니다.'):(c.pendingChoice?'전투 보상을 골라야 다음 목표로 진행합니다. 아래 버튼으로 항로와 회수품 선택을 확인하세요.':game.mode==='direct'?'WASD / 방향키로 이동하세요. 해역 탭에서 현재 목표를 확인하고 지도 표시 쪽으로 접근하세요. P로 잠시 멈출 수 있습니다.':'목표까지 자동으로 항해합니다. 교전은 자동 진행되며, 목표를 마친 뒤 해역 탭에서 다음 항로·회수품을 선택하세요.');
+  $('first-voyage-text').textContent=growing?'섬 정비에서 확장·농장을 선택해 자원을 투자하세요. 농장은 원정 목표를 확보하면 생산합니다. 농장 선택 → 수확하기로 회수하세요. 연구와 함대는 진행하면서 열립니다.':preparing?(armed?'무장이 준비됐습니다. 캠페인의 첫 번째 임무 카드를 눌러 출항하세요.':'추천: 박격포(자원 100)를 선택하고 배치도의 빈 타일을 클릭하세요. 기존 연사포만으로 바로 출항해도 됩니다.'):(c.pendingChoice?'전투 보상을 골라야 다음 목표로 진행합니다. 아래 버튼으로 항로와 회수품 선택을 확인하세요.':game.mode==='direct'?'WASD / 방향키로 이동하세요. 해역 탭에서 현재 목표를 확인하고 지도 표시 쪽으로 접근하세요. P로 잠시 멈출 수 있습니다.':'목표까지 자동으로 항해합니다. 교전은 자동 진행되며, 목표를 마친 뒤 해역 탭에서 다음 항로·회수품을 선택하세요.');
   $('first-voyage-action').textContent=growing?'섬 정비 · 성장 시설 보기':preparing&&!armed&&game.resources>=100?'박격포 선택 · 배치도 열기':preparing?'첫 임무 목록 보기':'현재 목표 · 회수품 보기';
   $('first-voyage-action').disabled=game.paused||game.phase!=='playing';
 }
