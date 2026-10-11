@@ -118,7 +118,7 @@ export const enemyTactics = {
   bomber:'가까이 오면 자폭합니다. 둔화와 집중 공격으로 접근을 막으세요.',
   tender:'같은 공세의 부상 아군을 따라가 17m 안에서 복구합니다. 지원 적 우선 공격으로 끊거나 함대로 분리하세요.',
   bulwark:'같은 공세의 복구 해수·모체 앞을 엄호하며 14m 안 아군의 피해를35% 줄입니다. 방호 해수를 집중 공격하거나 빠른 함대로 지원 적을 방호 범위 밖으로 분리하세요.',
-  carrier:'폭발 해파리를 최대 3번 부릅니다. 지원 적 우선 공격으로 먼저 잡으세요.',
+  carrier:'폭발 해파리를 최대 3번 부릅니다. 서리포·충격 파동의 둔화 중에는 증원 준비가 멈춥니다. 준비 시간을 보고 억제하거나 지원 적 우선 공격으로 먼저 잡으세요.',
 };
 export function missionSites(mission, expeditionVersion = 1) {
   if (expeditionVersion === 2) return expeditionSites(mission);

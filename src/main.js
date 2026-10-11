@@ -655,7 +655,7 @@ function updateContact() {
   $('contact-name').textContent=stats.name;
   $('contact-health').textContent=`내구도 ${Math.ceil(enemy.hp)} / ${Math.ceil(enemy.maxHp)} · ${enemy.active?'교전 중':'대기 중'}`;
   $('contact-hp').style.width=`${enemy.hp/enemy.maxHp*100}%`;
-  $('contact-stats').textContent=`장갑 ${Math.round(stats.armor*100)}% · 사거리 ${stats.range}m · ${stats.heal?`복구 ${stats.heal}`:`피해 ${Math.round(stats.damage*10)/10}`}`;
+  $('contact-stats').textContent=`장갑 ${Math.round(stats.armor*100)}% · 사거리 ${stats.range}m · ${contact.repairRate?`복구 ${Math.round(contact.repairRate*10)/10} HP/초`:`피해 ${Math.round(stats.damage*10)/10}`}`;
   $('contact-support').hidden=!contact.support;$('contact-support').textContent=contact.support;
   $('contact-tactic').textContent=contact.hint||'주변 위협과 사거리를 확인하고 접근하세요.';
   $('contact-orders').textContent=`선택 ${selected.length}기 · 이 적 공격 ${attacking}기${queued?` · 예약 ${queued}기`:''}`;

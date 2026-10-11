@@ -10,6 +10,7 @@ import {selectExplorationSite,finishExploration} from '../src/exploration.js';
 import {recruitUnit} from '../src/fleet.js';
 import {returnToHarbor,resolveFieldDecision} from '../src/campaign.js';
 import {encodeSave,decodeSave} from '../src/save.js';
+import {inspectedContact,inspectionContext} from '../src/combat-inspector.js';
 // Explicitly funded/forced isolated mechanics. The separate fresh journey tests
 // normal paid growth and does not consume these fixtures as playtime evidence.
 function base(chapter=0){const g=createCampaign();g.resources=10000;g.campaign.completed=missions.slice(0,Math.max(1,chapter*6)).map(m=>m.id);g.campaign.chapter=chapter;build(g,'shipyard',-1,0);recruitUnit(g,'skiff');return g;}
@@ -46,6 +47,7 @@ test('relay clearance reduces actual linked enemy damage by 20 percent, survives
 test('optional battery clearance blocks linked carrier reinforcements instead of delaying them',()=>{
   const g=base(8);launchDefense(g,'explore-black-1');survey(g,5);selectExplorationSite(g,'explore-node-7');const e=g.enemies[0];Object.assign(e,{type:'carrier',active:true,spawnTimer:0,spawnCount:0});g.enemies=[e];g.facilities=[];g.fleet.units=[];
   const baseline=structuredClone(g);baseline.sites[5].cleared=false;advance(g,1/60);advance(baseline,1/60);assert.equal(e.spawnCount,0);assert.equal(g.enemies.length,1);assert.equal(baseline.enemies[0].spawnCount,1);assert.equal(baseline.enemies.length,2);
+  const before=structuredClone(g),info=inspectedContact(g,{inspectedEnemy:e.id,inspectionContext:inspectionContext(g),selectedUnits:[]});assert.match(info.support,/봉쇄 포대에 의해 차단/);assert.equal(info.reinforcement.status,'blocked');assert.deepEqual(g,before);
 });
 test('crossfire, screens and pincer groups put genuinely different units and firing approaches into the new waves',()=>{
   const g=base(3);launchDefense(g,'explore-kelp-1');for(const [index,formation]of [[0,'pincer'],[1,'screen'],[2,'crossfire']]){g.operation.waiting=true;g.campaign.pendingChoice=null;g.operation.visible.push(...[g.catalog[index].id].filter(id=>!g.operation.visible.includes(id)));selectExplorationSite(g,g.catalog[index].id);assert.equal(g.catalog[index].formation,formation);

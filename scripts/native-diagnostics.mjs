@@ -22,7 +22,7 @@ export async function observeNativeClose(app){
     trace('observer-attached');
   });
 }
-export async function waitNativeCloseResult(logs,after,timeout=15000){
+export async function waitNativeTrace(logs,after,event,timeout=15000){
   // Read the observer's actual IPC acknowledgement. A fixed sleep cannot prove
   // that a failed close has finished before a test restores write permission.
   const started=Date.now();
@@ -30,11 +30,27 @@ export async function waitNativeCloseResult(logs,after,timeout=15000){
     for(const item of logs)for(const line of item.text.split('\n')){
       const marker=line.indexOf('TIDEHOLD_NATIVE_TRACE ');if(marker<0)continue;
       let trace;try{trace=JSON.parse(line.slice(marker+'TIDEHOLD_NATIVE_TRACE '.length));}catch{continue;}
-      if(trace.event==='close-ready'&&trace.at>=after)return trace;
+      if(trace.event===event&&trace.at>=after)return trace;
     }
     await new Promise(resolve=>setTimeout(resolve,25));
   }
-  throw new Error('Native close did not acknowledge its save result within the diagnostic deadline.');
+  throw new Error(`Native close did not report ${event} within the diagnostic deadline.`);
+}
+export const waitNativeCloseResult=(logs,after,timeout=15000)=>waitNativeTrace(logs,after,'close-ready',timeout);
+export async function closeNativeWindow(app,logs,timeout=20000){
+  const started=Date.now(),remaining=()=>Math.max(1,timeout-(Date.now()-started));
+  await app.evaluate(({BrowserWindow})=>setTimeout(()=>BrowserWindow.getAllWindows()[0].close(),10));
+  const saved=await waitNativeCloseResult(logs,started,Math.min(15000,remaining()));
+  if(!saved.ok)throw new Error(`Native close save failed: ${saved.error||'unknown failure'}`);
+  const closed=await waitNativeTrace(logs,started,'window-closed',remaining());
+  const quit=await waitNativeTrace(logs,started,'will-quit',remaining());
+  // The real close/save/quit above has already finished. Playwright keeps a
+  // Node inspector attached; its public close releases that test connection.
+  // Do not release it before a successful save and the natural window close.
+  let timer;
+  try{await Promise.race([app.close(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Native diagnostic connection did not close within the original deadline.')),remaining());})]);}
+  finally{clearTimeout(timer);}
+  return {saved,closed,quit,debuggerReleased:true};
 }
 async function bounded(promise){let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('diagnostic query timed out')),2000);})]);}finally{clearTimeout(timer);}}
 export async function recordNativeFailure({app,page,profile,error,errors,logs,records,executable}){

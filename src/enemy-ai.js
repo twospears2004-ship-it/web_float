@@ -2,7 +2,21 @@ import {closestHullPoint,separateFromHull} from './hull.js';
 
 export const enemySupportRadius=17;
 export const enemyProtectionRadius=14;
+export const enemyReinforcementLimit=3;
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
+export const enemyRepairRate=(g,stats)=>(stats.repair||0)*(1+(g.campaign?.chapter||0)*0.25);
+export function repairsEnemy(source,enemy) {
+  if(source===enemy||source.hp<=0||!source.active||source.captured||enemy.hp<=0||enemy.captured||enemy.hp>=enemy.maxHp||distance(source,enemy)>=enemySupportRadius)return false;
+  // Mobile repair ships support their engaged assault. Stationary generators
+  // retain their existing siege supply behavior, including idle structures.
+  return source.type!=='tender'||enemy.active&&source.siteId===enemy.siteId;
+}
+export function enemyReinforcement(enemy,stats) {
+  if(enemy.type!=='carrier')return null;
+  const remaining=Math.max(0,enemyReinforcementLimit-(enemy.spawnCount||0)),seconds=Math.max(0,enemy.spawnTimer);
+  const status=!remaining?'exhausted':!enemy.active?'waiting':!stats.spawn?'blocked':enemy.slowSeconds>0&&enemy.slowFactor<1?'slowed':'preparing';
+  return {remaining,seconds,status};
+}
 const localAllies=(g,e)=>g.enemies.filter(a=>a!==e&&a.hp>0&&a.active&&!a.captured&&a.siteId===e.siteId&&distance(e,a)<=32);
 export const protectsEnemy=(source,enemy)=>source!==enemy&&source.type==='bulwark'&&source.hp>0&&source.active&&!source.captured&&enemy.type!=='bulwark'&&enemy.hp>0&&!enemy.captured&&source.siteId===enemy.siteId&&distance(source,enemy)<enemyProtectionRadius;
 export function enemyProtector(g,enemy) {

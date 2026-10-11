@@ -1,8 +1,8 @@
 import {test,expect} from '@playwright/test';
 import fs from 'node:fs/promises';
 const snapshot=page=>page.evaluate(()=>window.__TIDEHOLD__.snapshot());
-async function load(page,file){await page.clock.install();await page.goto('/');await page.locator('[data-start="destination"]').click();await page.locator('#settings-button').click();await page.locator('#graphics-quality').selectOption('low');await page.locator('#close-settings').click();await page.locator('#save-file').setInputFiles(file);await page.locator('#resume-button').click();}
-async function resumeSaved(page){await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));const before=await snapshot(page);await page.clock.resume();await page.reload();await page.locator('#continue-button').click();const after=await snapshot(page);expect(after.campaign.atlas).toEqual(before.campaign.atlas);expect(after.resources).toBe(before.resources);return after;}
+async function load(page,file){await page.clock.install({time:new Date('2026-10-11T12:00:00Z')});await page.clock.pauseAt(new Date('2026-10-11T13:00:00Z'));await page.goto('/');await page.locator('[data-start="destination"]').click();await page.locator('#settings-button').click();await page.locator('#graphics-quality').selectOption('low');await page.locator('#close-settings').click();await page.locator('#save-file').setInputFiles(file);await page.locator('#resume-button').click();}
+async function resumeSaved(page){await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));const before=await snapshot(page);await page.reload();await page.locator('#continue-button').click();const after=await snapshot(page);expect(after.campaign.atlas).toEqual(before.campaign.atlas);expect(after.resources).toBe(before.resources);return after;}
 async function survey(page,index){
   await page.locator('[data-tab="voyage"]').click();await page.keyboard.press('f');await page.keyboard.press('g');await page.clock.runFor(15000);
   await page.locator('[data-tab="fleet"]').click();if(await page.locator('#repair-fleet').isEnabled())await page.locator('#repair-fleet').click();

@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test';
 import fs from 'node:fs/promises';
 const snapshot=page=>page.evaluate(()=>window.__TIDEHOLD__.snapshot());
 async function openRaid(page) {
-  await page.clock.install();await page.goto('/');await page.locator('[data-start="destination"]').click();
+  await page.clock.install({time:new Date('2026-10-11T12:00:00Z')});await page.clock.pauseAt(new Date('2026-10-11T13:00:00Z'));await page.goto('/');await page.locator('[data-start="destination"]').click();
   await page.locator('#save-file').setInputFiles('artifacts/colony-fixtures/coral-6-harbor.json');await page.locator('#resume-button').click();
   await page.locator('[data-tab="fleet"]').click();await page.locator('#build-shipyard').click();await page.locator('[data-tile="-1,0"]').click();
   await page.locator('[data-tab="fleet"]').click();for(let i=0;i<4;i++)await page.locator('[data-recruit="skiff"]').click();
@@ -31,14 +31,14 @@ test('paid fleet raids three bases, cuts generator power and saves the earned re
   }
   const g=await snapshot(page);expect(g.phase).toBe('mission-complete');expect(g.campaign.frontier.cleared).toContain('siege-coral-1');await expect(page.locator('#end-title')).toHaveText('거점을 확보했습니다');
   await fs.mkdir('artifacts',{recursive:true});await page.screenshot({path:'artifacts/siege-victory.png'});
-  await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));const saved=await snapshot(page);await page.clock.resume();await page.reload();await page.locator('#continue-button').click();
+  await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));const saved=await snapshot(page);await page.reload();await page.locator('#continue-button').click();
   expect((await snapshot(page)).operation).toEqual(saved.operation);await page.locator('#retry-button').click();await expect(page.locator('[data-siege="siege-coral-2"]')).toBeEnabled();expect(errors).toEqual([]);
 });
 test('active raid reload preserves physical targets and orders; abandon restores the paid fleet',async({page})=>{
   test.setTimeout(150000);const errors=[];page.on('pageerror',e=>errors.push(e.message));const departure=await openRaid(page);
   await page.locator('#start-defense-wave').click();await page.keyboard.press('f');const generator=(await snapshot(page)).enemies.find(e=>e.type==='generator');await targetEnemy(page,generator);await page.clock.runFor(5000);
   await page.keyboard.press('p');await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));const saved=await snapshot(page);
-  await page.clock.resume();await page.reload();await page.locator('#continue-button').click();const restored=await snapshot(page);
+  await page.reload();await page.locator('#continue-button').click();const restored=await snapshot(page);
   expect(restored.operation).toEqual(saved.operation);expect(restored.enemies).toEqual(saved.enemies);expect(restored.fleet).toEqual(saved.fleet);
   await page.locator('#resume-button').click();await page.locator('[data-tab="voyage"]').click();await page.locator('#home-button').click();await page.locator('#confirm-return').click();const harbor=await snapshot(page);
   expect(harbor.campaign.stage).toBe('harbor');expect(harbor.resources).toBe(departure.resources);expect(harbor.fleet.units.map(u=>u.hp)).toEqual(departure.fleet.units.map(u=>u.hp));expect(harbor.campaign.frontier.cleared).not.toContain('siege-coral-1');expect(errors).toEqual([]);

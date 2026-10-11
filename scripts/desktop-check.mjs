@@ -5,7 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import {decodeSave} from '../src/save.js';
-import {captureNativeOutput,recordNativeFailure,observeNativeClose,waitNativeCloseResult} from './native-diagnostics.mjs';
+import {captureNativeOutput,recordNativeFailure,observeNativeClose,waitNativeCloseResult,closeNativeWindow} from './native-diagnostics.mjs';
 const packaged=process.argv.find(a=>a.startsWith('--executable='))?.slice(13),id=new Date().toISOString().replace(/[:.]/g,'-');
 const profile=path.resolve('artifacts','desktop-profiles',id),records=[],errors=[];await fs.mkdir(profile,{recursive:true});
 let app,page;const nativeOutput=[];
@@ -17,7 +17,7 @@ async function launch(clear=false){
   assert.equal(await page.evaluate(()=>window.__TIDEHOLD__!==undefined),false);assert.deepEqual(await page.evaluate(()=>({require:typeof window.require,process:typeof window.process,desktop:window.tideholdDesktop.version})),{require:'undefined',process:'undefined',desktop:1});
   assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isVisible()),false);return page;
 }
-async function close(){const ended=app.waitForEvent('close',{timeout:20000});await app.evaluate(({BrowserWindow})=>{setTimeout(()=>BrowserWindow.getAllWindows()[0].close(),10);});await ended;app=null;}
+async function close(){await closeNativeWindow(app,nativeOutput);app=null;}
 const disk=async()=>decodeSave(await fs.readFile(path.join(profile,'saves','campaign.json'),'utf8'));
 try{
   page=await launch();const start=Date.now();await page.locator('[data-start="direct"]').click();await page.locator('#save-file').setInputFiles('tests/fixtures/walls-legacy-coral-harbor.json');await page.locator('#resume-button').click();
