@@ -19,6 +19,7 @@ import { chapters, missions, getMission, getChapter, abilityDefinitions, bossTac
 import { launchMission, returnToHarbor, retryMission, availableMissions, useAbility, repairEscort, resupplyAbilities, researchTechnology, powerCapacity, powerUsed, facilityPower, currentFieldDecision, resolveFieldDecision } from './campaign.js';
 import { saveCampaign, loadCampaign, encodeSave, decodeSave, SAVE_KEY } from './save.js';
 import {facilityGrowth} from './facility-growth.js';
+import {defenseWavePlan} from './defense-plans.js';
 import {createDesktopBridge} from './desktop-bridge.js';
 import {createRenderCadence} from './render-cadence.js';
 import { GameAudio, loadSettings, SETTINGS_KEY } from './audio.js';
@@ -104,7 +105,7 @@ app.innerHTML = `
 `;
 const $ = (id) => document.getElementById(id);
 $('campaign-panel').insertAdjacentHTML('beforeend','<div id="frontier-panel"><h3>기지 방어 작전</h3><p class="board-help">시설마다 개별 내구도가 있습니다. 성벽으로 생산 시설을 가리고 함대를 배치하세요. 새 해역의 공세와 방어 기록이 열립니다.</p><div id="defense-list"></div><h3>함대 기지 공략</h3><p class="board-help">조선소와 함대가 필요합니다. 동력망과 지휘핵을 공략해 세 거점을 확보하세요. 보급 창고는 추가 자원입니다.</p><div id="siege-list"></div></div>');
-$('voyage-panel').insertAdjacentHTML('afterbegin','<div id="defense-control" class="field-choice" hidden><h3 id="defense-title"></h3><p id="defense-status"></p><button id="start-defense-wave" class="primary-button">공세 시작</button></div>');
+$('voyage-panel').insertAdjacentHTML('afterbegin','<div id="defense-control" class="field-choice" hidden><h3 id="defense-title"></h3><p id="defense-status"></p><div id="defense-plan" hidden></div><button id="start-defense-wave" class="primary-button">공세 시작</button></div>');
 $('frontier-panel').insertAdjacentHTML('beforeend','<h3>미지 항로 탐험</h3><p class="board-help">함대로 신호를 발견하고 조사 순서를 고르세요. 필수 기록 3개로 귀환할 수 있습니다. 조사 기록은 여러 원정에 걸쳐 쌓이며 해도 완성 보상은 한 번 지급합니다.</p><div id="exploration-list"></div>');
 $('unit-list').insertAdjacentHTML('beforebegin',`<div class="fleet-groups"><h3>전대 편성</h3><div class="fleet-group-list">${controlGroupNumbers.map(number=>`<div><button data-control-group="${number}" aria-label="전대 ${number} 선택" title="${number}: 선택 · 두 번 누르면 시점 이동 · Shift: 추가 선택">${number}<small data-group-count>0기</small></button><button data-group-save="${number}" aria-label="선택 함대를 전대 ${number}에 등록" title="선택한 함선으로 편성 교체 · Shift: 기존 편성에 추가">등록</button></div>`).join('')}</div><p class="board-help">5–9 선택 · Ctrl+숫자 등록 · Ctrl+Shift+숫자 추가 등록. 선택 없이 등록하면 편성을 비웁니다. 능력은 1–4번입니다.</p></div>`);
 $('fleet-panel').insertAdjacentHTML('afterend',`<div id="atlas-panel" class="tab-panel" hidden><div class="section-heading"><span class="eyebrow">CHART THE UNKNOWN</span><h2>항로 기록</h2><p>다녀온 바다의 기록이 섬의 다음 성장을 엽니다.</p></div><label class="atlas-filter">기록할 해역<select id="atlas-chapter"><option value="current">현재 해역</option>${chapters.map((ch,i)=>`<option value="${i}">${ch.name}</option>`).join('')}</select></label><div id="atlas-content"></div></div>`);
@@ -418,6 +419,11 @@ function drawMap() {
       const a=point(site),b=point(game.catalog[j]);c.strokeStyle=(i===5&&game.sites[i].cleared)||(j===5&&game.sites[j].cleared)?'#70c4c2aa':(i===4&&game.sites[i].cleared)||(j===4&&game.sites[j].cleared)?'#edcc82aa':'#9fbfbb60';c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();
     }
   }
+  if(game.operation?.kind==='defense'&&game.operation.defenseVersion===2){
+    const plan=defenseWavePlan(getOperation(game.operation.id),game.operation.round);
+    c.font='11px sans-serif';c.textAlign='center';
+    for(const lane of plan.lanes){const a=lane.bearing*Math.PI/180,from=point({x:Math.sin(a)*54,z:-Math.cos(a)*54}),to=point({x:Math.sin(a)*24,z:-Math.cos(a)*24});c.strokeStyle=lane.lead?'#edcc82cc':'#df9f83aa';c.lineWidth=2;c.beginPath();c.moveTo(from.x,from.y);c.lineTo(to.x,to.y);c.stroke();const angle=Math.atan2(to.y-from.y,to.x-from.x);c.beginPath();c.moveTo(to.x-Math.cos(angle-0.5)*6,to.y-Math.sin(angle-0.5)*6);c.lineTo(to.x,to.y);c.lineTo(to.x-Math.cos(angle+0.5)*6,to.y-Math.sin(angle+0.5)*6);c.stroke();c.fillStyle='#f2d7b1';c.fillText(String(lane.count),from.x,from.y-4);}c.lineWidth=1;
+  }
   if (tracked) { const p = point(tracked); c.strokeStyle = '#edcc8290'; c.setLineDash([3, 4]); c.beginPath(); c.moveTo(current.x, current.y); c.lineTo(p.x, p.y); c.stroke(); c.setLineDash([]); }
   c.font = '14px sans-serif'; c.fillStyle = '#bbd3c9'; c.textAlign = 'center'; c.fillText('⌂', 115, 110);
   for (const [i, s] of sitesFor(game).entries()) {
@@ -475,6 +481,7 @@ function updateFleet() {
 let lastFacilityKey = '', lastBoardKey = '';
 let lastDefenseKey='';
 function updateDefense(force) {
+  $('defense-plan').hidden=game.operation?.kind!=='defense'||game.operation.defenseVersion!==2;
   const c=game.campaign,op=game.operation,def=getOperation(op?.id);$('defense-control').hidden=!def||c?.stage!=='operation';$('frontier-panel').hidden=!c;
   if(!c)return;
   const key=JSON.stringify([c.chapter,c.completed.length,c.frontier?.cleared,c.stage,game.paused]);
@@ -502,6 +509,7 @@ function updateDefense(force) {
   const coreSupply=splitSupply?`핵 전력 ${[...cores].sort((a,b)=>(circuitOrder[a.powerBus]??1)-(circuitOrder[b.powerBus]??1)).map(e=>`${circuitName[e.powerBus]||'공용'} ${basePower(game,e)}`).join(' · ')}`:`동력 공급 ${cores.some(e=>basePower(game,e)>0)?'유지':'차단'}`;
   $('defense-title').textContent=def.name;$('defense-status').textContent=siege?`${siegePatterns[def.pattern].name} · 거점 ${op.round+1}/3 · ${op.waiting?'함대 정비 후 공략하세요.':`지휘핵 ${cores.length} · 동력기 ${generators.length} · ${coreSupply}`}`:`${defensePatterns[def.pattern].name} · 공세 ${op.round+1}/${def.waves} · ${op.waiting?'시설·함대 정비 후 시작하세요.':`남은 적 ${game.enemies.filter(e=>e.hp>0).length}기`}`;
   $('start-defense-wave').disabled=!op.waiting||game.paused;$('start-defense-wave').textContent=`${op.round+1}번째 ${siege?'거점 공략':'공세 시작'}`;
+  if(!siege&&op.defenseVersion===2){const plan=defenseWavePlan(def,op.round),key=`${op.id}:${op.round}`;if(force||$('defense-plan').dataset.key!==key){$('defense-plan').dataset.key=key;$('defense-plan').innerHTML=`<h4>${plan.name} · ${plan.title}</h4><ul>${plan.lanes.map(lane=>`<li data-defense-lane="${lane.bearing}">${lane.direction} 진입 ${lane.count}기${lane.lead?' · 선두 진입로':''}</li>`).join('')}</ul><p>${plan.hint}</p><small>지도 화살표는 이번 공세의 진입로입니다. 공세 사이에 재배치·시설 복구·함대 정비를 할 수 있습니다.</small>`;}}
   $('mission-hud').hidden=false;$('mission-name').textContent=def.name;$('mission-progress').textContent=$('defense-status').textContent;$('ally-hud').hidden=true;
   $('ability-bar').hidden=c.stage!=='operation';$('restart-button').textContent=siege?'기지 공략 재시작':'방어 재시작';$('route-toggle').hidden=true;
   $('sea-state').textContent=game.paused?'일시정지':siege?op.waiting?'거점 확보 · 함대 정비':'기지 공략 · 동력망과 지휘핵':'기지 방어 · '+(op.waiting?'공세 사이 정비':'공세 진행');

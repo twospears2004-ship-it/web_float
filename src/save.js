@@ -80,6 +80,7 @@ export function validateCampaign(g) {
   check(['harbor', 'mission', 'result','operation','operation-result'].includes(c.stage) && integer(c.chapter, 0, 11), '캠페인 진행 단계가 올바르지 않습니다.');
   const operation=getOperation(g.operation?.id),isOperation=['operation','operation-result'].includes(c.stage);
   check(isOperation ? operation&&g.operation.version===1&&g.operation.kind===operation.kind&&g.operation.chapter===operation.chapter&&integer(g.operation.round,0,operation.waves-1)&&typeof g.operation.waiting==='boolean'&&operation.chapter<=c.chapter : g.operation===undefined||g.operation===null,'외해 작전을 복원할 수 없습니다.');
+  if(isOperation)check(g.operation.defenseVersion===undefined||(operation.kind==='defense'&&[1,2].includes(g.operation.defenseVersion)),'방어 공세 버전이 올바르지 않습니다.');
   if(c.frontier!==undefined) {
     const f=c.frontier;check(f?.version===1&&Array.isArray(f.cleared)&&f.cleared.length<=frontierOperations.length&&new Set(f.cleared).size===f.cleared.length&&f.cleared.every(id=>getOperation(id)&&getOperation(id).chapter<=c.chapter&&(!getOperation(id).endgame||c.completed.length===missions.length))&&finite(f.totalSeconds),'외해 진행이 올바르지 않습니다.');
     check(f.records&&Object.keys(f.records).every(id=>f.cleared.includes(id)&&finite(f.records[id].seconds)&&integer(f.records[id].score,0,100)&&integer(f.records[id].standing,0,160)&&integer(f.records[id].kills,0,10000)),'방어 작전 기록이 올바르지 않습니다.');

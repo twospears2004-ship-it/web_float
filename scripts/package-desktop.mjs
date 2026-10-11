@@ -15,6 +15,7 @@ for(const entry of await fs.readdir('.electron-cache',{withFileTypes:true})){if(
 if(!zipDirectory)throw new Error('Electron 런타임 캐시가 없습니다. electron_config_cache=.electron-cache로 npm run setup:desktop을 실행하세요.');
 const bundles=await packager({dir:stage,name:'TIDEHOLD',platform:'win32',arch:'x64',electronVersion,electronZipDir:zipDirectory,asar:true,out,overwrite:false,prune:false,win32metadata:{FileDescription:'TIDEHOLD — 떠도는 섬',ProductName:'TIDEHOLD','requested-execution-level':'asInvoker'}});
 const directory=bundles[0];await fs.copyFile('ASSET_LICENSES.md',path.join(directory,'ASSET_LICENSES.md'));await fs.cp('public/licenses',path.join(directory,'licenses'),{recursive:true});
+await fs.copyFile('PLAY_GUIDE.md',path.join(directory,'PLAY_GUIDE.md'));
 await fs.writeFile(path.join(directory,'시작하기.txt'),'TIDEHOLD — 떠도는 섬\r\n\r\nTIDEHOLD.exe를 실행하세요. Node와 브라우저 설치, 인터넷 연결이 필요하지 않습니다.\r\nF11: 전체 화면 · Alt: 메뉴\r\n자동 저장: 현재 Windows 계정의 AppData\\Roaming\\TIDEHOLD\r\n기존 웹판 항해: 캠페인에서 저장 파일 내보내기 → 실행판에서 저장 파일 불러오기\r\n폴더 전체를 함께 보관하세요. 실행 파일만 따로 이동하면 실행되지 않습니다.\r\n현재 개발판이며 Steam 출시 인증 또는 사람의20시간 플레이 검증을 완료한 상태가 아닙니다.\r\n');
 const executable=path.join(directory,'TIDEHOLD.exe'),digest=createHash('sha256').update(await fs.readFile(executable)).digest('hex');
 const asarSha256=createHash('sha256').update(await fs.readFile(path.join(directory,'resources','app.asar'))).digest('hex');
