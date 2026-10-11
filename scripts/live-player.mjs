@@ -5,6 +5,13 @@ export function needsStoryDeparture(g,activationRange,observedObjective){
   const site=g.catalog[g.campaign.objectiveIndex],living=g.enemies.filter(e=>e.hp>0&&!e.captured);
   return !!site&&(g.campaign.objectiveIndex!==observedObjective||g.campaign.waitingForDeparture===true||!!(living.length&&living.every(e=>!e.active)&&Math.hypot(g.island.x-site.x,g.island.z-site.z)>activationRange));
 }
+export function visibleStackTarget(g,intended,ids){
+  if(g.phase!=='playing'||g.paused||g.campaign?.pendingChoice)return null;
+  const wanted=g.enemies.find(e=>e.id===intended.id&&e.hp>0&&!e.captured),units=g.fleet.units.filter(u=>ids.includes(u.id)&&u.hp>0);
+  if(!wanted||!units.length||units.some(u=>u.command.type!=='attack'||u.command.target!==units[0].command.target))return null;
+  const actual=g.enemies.find(e=>e.id===units[0].command.target&&e.hp>0&&!e.captured);
+  return actual&&actual.id!==wanted.id&&actual.siteId===wanted.siteId&&Math.hypot(actual.x-wanted.x,actual.z-wanted.z)<=4?actual:null;
+}
 export function livePlayer(page,rules){
   const {rulesFor,canManage,expansionSlots,upgradeCost,facilityPosition,powerUsed,powerCapacity,facilityPower,researchCost,technologies,productionTypes,atShore,fieldDecisions,fleetRules,structureHull}=rules;
   const state=()=>page.evaluate(()=>window.__TIDEHOLD__.snapshot());
@@ -147,6 +154,11 @@ export function livePlayer(page,rules){
       if(living.every(id=>{const c=g.fleet.units.find(u=>u.id===id).command;return c?.type===type&&(type!=='attack'||c.target===target.id);}))return true;
     }
     g=await state();if(!canCommand(g)||type==='attack'&&!g.enemies.some(e=>e.id===target.id&&e.hp>0&&!e.captured))return false;
+    // A larger front body can hide the requested contact. Accept only the
+    // actual unanimous attack on a living neighbour in this same encounter.
+    // Record the redirect; never claim the hidden target was selected.
+    const redirected=type==='attack'&&visibleStackTarget(g,target,ids);
+    if(redirected){console.log(JSON.stringify({event:'visible-stack-target',intended:target.id,actual:redirected.id,units:ids.filter(id=>g.fleet.units.some(u=>u.id===id&&u.hp>0))}));return true;}
     throw new Error(`Rendered pointer could not issue ${type} to ${target.id||'water'}: ${JSON.stringify({target:g.enemies.find(e=>e.id===target.id),units:g.fleet.units.filter(u=>ids.includes(u.id)).map(u=>({id:u.id,hp:u.hp,command:u.command}))})}`);
   }
   async function recall(){

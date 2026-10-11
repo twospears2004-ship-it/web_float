@@ -1,6 +1,15 @@
 import {test,expect} from '@playwright/test';
 import {livePlayer} from '../../scripts/live-player.mjs';
 
+test('a real earned overlapping contact records the visible neighbour actually attacked',async({page})=>{
+  // Byte-for-byte owned terminal save: old frozen 15d7, run12, 128 completed
+  // operations. Real clock and public file/select/pointer controls only.
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('/');await page.locator('[data-start="destination"]').click();await page.locator('#save-file').setInputFiles('tests/fixtures/live-earned-relic-overlap.json');
+  const player=livePlayer(page,{}),before=await player.state(),hidden=before.enemies.find(e=>e.id==='relic-3-w20-6'),front=before.enemies.find(e=>e.id==='relic-3-w20-7'),ids=before.fleet.units.filter(u=>u.hp>0&&u.type!=='tender').map(u=>u.id);
+  expect(Math.hypot(hidden.x-front.x,hidden.z-front.z)).toBeLessThan(1);await page.locator('#resume-button').click();expect(await player.order('attack',hidden,ids)).toBe(true);
+  const after=await player.state(),orders=after.fleet.units.filter(u=>ids.includes(u.id)&&u.hp>0).map(u=>u.command);expect(orders.length).toBeGreaterThan(0);expect(orders.every(c=>c.type==='attack'&&c.target===front.id)).toBe(true);expect(after.checkpoint).toEqual(before.checkpoint);expect(after.resources).toBeGreaterThanOrEqual(before.resources);expect(errors).toEqual([]);
+});
+
 test('a genuine survey choice disabled after readiness remains unspent and recoverable',async({page})=>{
   test.setTimeout(120000);const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.clock.install();await page.goto('/',{waitUntil:'domcontentloaded'});await page.locator('[data-start="destination"]').click();
