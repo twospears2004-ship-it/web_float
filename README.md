@@ -159,6 +159,8 @@ npm run preview
 
 ## 테스트
 
+현재 소스와 검사 파일을 고정 복사해 별도 포트에서 전체 검사를 실행하려면 `node scripts/full-ui-check.mjs`를 사용합니다. 기존 `node_modules`와 정상 모델 검사로 만든 `artifacts/campaign-fixtures`, `colony-fixtures`, `exploration-fixtures`, `atlas-fixtures`, `defense-fixtures`가 필요합니다. 없으면 아래 캠페인·생산·탐험 검사와 `npm run audit:atlas`, `node scripts/audit-defense.mjs --only=defense-black-1`로 먼저 준비하세요. 결과와 복사본은 고유 `artifacts/full-ui-<시각>/`에 저장됩니다. 실제 시간 장기 검사와 개인 저장은 공유하지 않으며 UI 가상 시간은 플레이 시간 증거로 합산하지 않습니다.
+
 ```powershell
 npm test
 npm run test:browser

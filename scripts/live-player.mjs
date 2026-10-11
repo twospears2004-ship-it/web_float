@@ -11,7 +11,7 @@ export function livePlayer(page,rules){
   const tap=async selector=>{
     if((await state()).phase!=='playing')return false;
     const b=page.locator(selector);if(!await b.isVisible()||!await b.isEnabled())return false;
-    try{await b.click({timeout:3000});return true;}
+    try{await b.click({timeout:30000});return true;}
     catch(error){
       // Choices, pauses and completed surveys can disable a control after the
       // initial readiness check. Return the same unavailable result as above.
@@ -19,7 +19,11 @@ export function livePlayer(page,rules){
       throw error;
     }
   };
-  const tab=name=>tap(`[data-tab="${name}"]`);
+  const tab=async name=>{
+    const button=page.locator(`[data-tab="${name}"]`);
+    if(await button.isVisible()&&await button.evaluate(element=>element.classList.contains('active')))return true;
+    return tap(`[data-tab="${name}"]`);
+  };
   async function board(){await tab('build');if(await page.locator('#board-toggle').getAttribute('aria-expanded')!=='true')await tap('#board-toggle');}
   async function facility(id){
     const f=(await state()).facilities.find(f=>f.id===id);if(!f)return false;await board();
