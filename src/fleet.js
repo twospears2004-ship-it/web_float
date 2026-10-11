@@ -2,6 +2,7 @@ import {fleetRules,unitTypes,unitRefits} from './fleet-content.js';
 import {waterPoint,waterPath,navigable,clearLine} from './navigation.js';
 import {hullDistance} from './hull.js';
 import {automaticFleetTarget} from './fleet-targeting.js';
+import {fleetFormations,fleetFormationPosition} from './fleet-formations.js';
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z),emit=(g,e)=>{g.events.push(e);if(g.events.length>180)g.events.shift();};
 export const emptyFleet=()=>({version:1,nextId:1,units:[]});
 export const controlGroupNumbers=[5,6,7,8,9];
@@ -98,8 +99,8 @@ export function guardCycle(fleet,ids,targetId) {
   while(ward){if(seen.has(ward.id))return true;seen.add(ward.id);ward=ward.command?.type==='guard'?fleet.units.find(u=>u.id===ward.command.target&&u.hp>0):null;}
   return false;
 }
-export function orderUnits(g,ids,type,point,append=false) {
-  if(!g.campaign||!['mission','operation'].includes(g.campaign.stage)||g.phase!=='playing'||g.paused||g.campaign.pendingChoice||!['move','attackMove','attack','hold','escort','guard'].includes(type))return false;
+export function orderUnits(g,ids,type,point,append=false,formation='compact') {
+  if(!g.campaign||!['mission','operation'].includes(g.campaign.stage)||g.phase!=='playing'||g.paused||g.campaign.pendingChoice||!Object.hasOwn(fleetFormations,formation)||!['move','attackMove','attack','hold','escort','guard'].includes(type))return false;
   const ward=type==='guard'?g.fleet?.units.find(u=>u.id===point?.id&&u.hp>0):null;
   if(type==='guard'&&!ward)return deny(g,'호위할 살아 있는 아군 함선을 선택하세요.');
   const units=(g.fleet?.units || []).filter(u=>u.hp>0&&ids.includes(u.id)&&u!==ward);if(!units.length)return false;
@@ -111,9 +112,9 @@ export function orderUnits(g,ids,type,point,append=false) {
   // A formation receives the entire order or none of it, even if only one
   // selected ship has reached the queue limit.
   if(queued&&units.some(u=>['move','attackMove','attack'].includes(u.command.type)&&(u.orders?.length||0)>=fleetRules.maximumQueuedOrders))return deny(g,`예약 명령은 함선당 ${fleetRules.maximumQueuedOrders}개까지 가능합니다. 새 우클릭이나 H로 다시 지휘하세요.`);
-  const width=Math.ceil(Math.sqrt(units.length)),destinations=(g.fleet?.units||[]).filter(u=>u.hp>0&&!ids.includes(u.id)&&u.command?.type==='hold').map(u=>({x:u.x,z:u.z,radius:unitTypes[u.type].radius}));
+  const destinations=(g.fleet?.units||[]).filter(u=>u.hp>0&&!ids.includes(u.id)&&u.command?.type==='hold').map(u=>({x:u.x,z:u.z,radius:unitTypes[u.type].radius}));
   for(const [i,u] of units.entries()) {
-    const destination=['move','attackMove'].includes(type)?waterPoint(g,{x:point.x+(i%width-(width-1)/2)*3,z:point.z+(Math.floor(i/width)-(Math.ceil(units.length/width)-1)/2)*3},unitTypes[u.type].radius,destinations):null;
+    const destination=['move','attackMove'].includes(type)?waterPoint(g,fleetFormationPosition(point,units.length,i,formation),unitTypes[u.type].radius,destinations):null;
     if(destination)destinations.push({...destination,radius:unitTypes[u.type].radius});
     const command=enemy?{type,target:enemy.id}:ward?{type,target:ward.id}:destination?{type,...destination}:{type};
     if(queued&&['move','attackMove','attack'].includes(u.command.type)){
@@ -121,7 +122,7 @@ export function orderUnits(g,ids,type,point,append=false) {
     }else {u.command=command;delete u.orders;u.waypoints=[];u.repath=0;}
   }
   if(['move','attackMove','attack'].includes(type))g.campaign.waitingForDeparture=false;
-  g.message=`함대 ${units.length}기: ${{move:'이동',attackMove:'공격 이동',attack:'집중 공격',hold:'위치 사수',escort:'섬 호위',guard:`아군 #${ward?.id} 호위`}[type]} ${queued?'예약':'명령'}.`;return true;
+  g.message=`함대 ${units.length}기: ${{move:'이동',attackMove:'공격 이동',attack:'집중 공격',hold:'위치 사수',escort:'섬 호위',guard:`아군 #${ward?.id} 호위`}[type]} ${queued?'예약':'명령'}.${formation==='spread'&&['move','attackMove'].includes(type)?' 분산 대형.':''}`;return true;
 }
 function finishOrder(g,u) {
   let next;

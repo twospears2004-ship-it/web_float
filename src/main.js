@@ -46,7 +46,7 @@ app.innerHTML = `
       <div class="compass"><span>N</span><span class="compass-arrow">↑</span><small>북쪽</small></div>
       <div id="tool-tip" class="tool-tip" hidden></div>
       <div id="selection-box" class="selection-box" hidden></div>
-      <div id="fleet-toolbar" class="fleet-toolbar" hidden><button id="command-toggle" aria-pressed="false">Q 함대 선택</button><span id="selection-count">선택 0</span><button data-order="escort" title="G · 섬 호위">호위</button><button data-order="hold" title="H · 위치 사수">사수</button><button id="attack-move" aria-pressed="false" title="X · 다음 우클릭으로 공격 이동">공격 이동</button><button id="fleet-focus" title="C · 선택 함대 / 섬 시점 전환">함대 시점</button></div>
+      <div id="fleet-toolbar" class="fleet-toolbar" hidden><button id="command-toggle" aria-pressed="false">Q 함대 선택</button><span id="selection-count">선택 0</span><button data-order="escort" title="G · 섬 호위">호위</button><button data-order="hold" title="H · 위치 사수">사수</button><button id="attack-move" aria-pressed="false" title="X · 다음 우클릭으로 공격 이동">공격 이동</button><button id="spread-formation" aria-label="넓은 이동 대형" aria-pressed="false" aria-describedby="fleet-formation-note" title="밀집 3m / 분산 12m · 다음 이동·공격 이동의 간격 선택">밀집 이동 · 3m</button><button id="fleet-focus" title="C · 선택 함대 / 섬 시점 전환">함대 시점</button></div>
       <section id="contact-panel" class="contact-panel" hidden aria-labelledby="contact-name"><div class="contact-heading"><strong id="contact-name"></strong><button id="close-contact" aria-label="적 정보 닫기">×</button></div><p id="contact-health"></p><div class="meter"><i id="contact-hp"></i></div><p id="contact-stats"></p><p id="contact-support" hidden></p><p id="contact-tactic"></p><p id="contact-orders"></p><button id="attack-contact"></button><small>적 클릭: 정보 · 함대 선택 모드에서 우클릭: 공격<br>Shift+공격: 예약 · 주황색 원: 사거리 · 청록색 원: 적 방호14m</small></section>
       <div class="map-panel"><div class="map-title"><span>해역 지도</span><small>고정 시나리오 01</small></div><canvas id="minimap" width="230" height="180" aria-label="정박지와 세 전투 위치 지도"></canvas><div class="map-legend"><span>● 나의 섬</span><span>◇ 미탐사</span><span>✓ 정리</span></div></div>
       <div class="sea-bottom"><div class="hint-key" id="controls-hint">W A S D 이동 <span>·</span> 휠 확대 <span>·</span> 타일 클릭 배치</div><button id="mode-button" class="glass-button">⇄ 이동 방식 비교</button></div>
@@ -119,7 +119,7 @@ $('unit-list').insertAdjacentHTML('beforebegin',`<div class="fleet-groups"><h3>�
 $('fleet-panel').insertAdjacentHTML('afterend',`<div id="atlas-panel" class="tab-panel" hidden><div class="section-heading"><span class="eyebrow">CHART THE UNKNOWN</span><h2>항로 기록</h2><p>다녀온 바다의 기록이 섬의 다음 성장을 엽니다.</p></div><label class="atlas-filter">기록할 해역<select id="atlas-chapter"><option value="current">현재 해역</option>${chapters.map((ch,i)=>`<option value="${i}">${ch.name}</option>`).join('')}</select></label><div id="atlas-content"></div></div>`);
 $('defense-control').insertAdjacentHTML('beforeend','<button id="send-survey" hidden>선택 함대를 조사 지점으로</button><button id="extract-exploration" class="primary-button" hidden>기록을 가지고 귀환</button>');
 let game = createGame();
-const ui = { started: false, tool: null, selected: null, moving: null, hover: null, tab: 'build', trackedSite: 'shoal', helpWasPaused: false, experience: 'campaign', modeSwitch: false, pendingMode: null, showLocked: false, board:false,selectedUnits:[],commandMode:false,attackMove:false,fleetFocus:false };
+const ui = { started: false, tool: null, selected: null, moving: null, hover: null, tab: 'build', trackedSite: 'shoal', helpWasPaused: false, experience: 'campaign', modeSwitch: false, pendingMode: null, showLocked: false, board:false,selectedUnits:[],commandMode:false,attackMove:false,spreadFormation:false,fleetFocus:false };
 installDialogKeyboard();
 ui.edge='north';
 const desktop=createDesktopBridge(window.tideholdDesktop,localStorage),desktopRestore=await desktop.restore();
@@ -156,7 +156,7 @@ function installGame(next, tab = 'build') {
   audio.unlock();
   game = next; view?.reset(); keys.clear(); lastSiteKey = ''; lastCampaignKey = '';
   Object.assign(ui, { started: true, tool: null, selected: null, moving: null, hover: null, trackedSite: 'shoal' });
-  Object.assign(ui,{selectedUnits:[],commandMode:false,attackMove:false,fleetFocus:false,inspectedEnemy:null,inspectionContext:null});
+  Object.assign(ui,{selectedUnits:[],commandMode:false,attackMove:false,spreadFormation:false,fleetFocus:false,inspectedEnemy:null,inspectionContext:null});
   ui.lastGroup=null;
   $('start-overlay').hidden = true; $('end-overlay').hidden = true; $('pause-overlay').hidden = true; $('help-overlay').hidden = true;
   $('replace-overlay').hidden = true; showTab(tab); update(true); $('pause-button').focus();
@@ -346,7 +346,7 @@ $('fleet-panel').addEventListener('click',e=>{
   else if(e.ctrlKey)storeGroup(Number(b.dataset.controlGroup),e.shiftKey);
   else selectGroup(Number(b.dataset.controlGroup),e.shiftKey);
 });
-function issueOrder(type,point,append=false) {ui.lastGroup=null;if(orderUnits(game,ui.selectedUnits,type,point,append)){ui.attackMove=false;persist();}update(true);}
+function issueOrder(type,point,append=false) {ui.lastGroup=null;if(orderUnits(game,ui.selectedUnits,type,point,append,ui.spreadFormation?'spread':'compact')){ui.attackMove=false;persist();}update(true);}
 function inspectEnemy(id) {ui.inspectedEnemy=id;ui.inspectionContext=inspectionContext(game);update(true);}
 function focusCombatControl(){($('fleet-toolbar').hidden?$('pause-button'):$('command-toggle')).focus({preventScroll:true});}
 $('close-contact').addEventListener('click',()=>{ui.inspectedEnemy=null;update(true);focusCombatControl();});
@@ -354,6 +354,8 @@ $('attack-contact').addEventListener('click',e=>{const contact=inspectedContact(
 $('command-toggle').addEventListener('click',()=>{ui.commandMode=!ui.commandMode;ui.tool=null;ui.hover=null;update(true);});
 document.querySelectorAll('[data-order]').forEach(b=>b.addEventListener('click',()=>issueOrder(b.dataset.order)));
 $('attack-move').addEventListener('click',()=>{ui.attackMove=!ui.attackMove;ui.commandMode=true;update(true);});
+$('spread-formation').addEventListener('click',()=>{ui.spreadFormation=!ui.spreadFormation;update(true);});
+$('fleet-panel').querySelector('.board-help').insertAdjacentHTML('beforebegin','<p id="fleet-formation-note" class="board-help">이동 대형: 밀집 3m / 분산 12m. 분산하면 범위 공격에 덜 모이지만 수리·방호 범위를 벗어날 수 있습니다. 다음 이동·공격 이동과 예약에 적용하며 물가·시설 근처는 안전한 바다로 조정합니다. 조사 지점 접근은 밀집합니다.</p>');
 $('fleet-focus').addEventListener('click',()=>{ui.fleetFocus=!ui.fleetFocus;if(view)view.mapFocus=null;update(true);});
 $('unit-list').insertAdjacentHTML('beforebegin',`<div class="fleet-targeting"><label for="fleet-targeting">선택 함대의 자동 사격</label><select id="fleet-targeting" aria-describedby="fleet-targeting-note"><option value="mixed" disabled>서로 다른 우선순위</option>${Object.entries(fleetTargetingModes).map(([id,mode])=>`<option value="${id}">${mode.name}</option>`).join('')}</select><p id="fleet-targeting-note"></p></div>`);
 $('fleet-targeting').addEventListener('change',e=>{if(setFleetTargeting(game,ui.selectedUnits,e.target.value))persist();update(true);});
@@ -492,6 +494,7 @@ function updateFleet() {
   const safe=canManage(game)&&!game.paused,commandable=['mission','operation'].includes(c.stage)&&game.phase==='playing'&&!game.paused&&!c.pendingChoice;
   document.querySelectorAll('[data-recruit]').forEach(b=>{const u=unitTypes[b.dataset.recruit];b.disabled=!safe||yard<u.yardLevel||c.chapter<u.unlock||fleetSupply(game)+u.supply>fleetCapacity(game)||game.resources<u.cost;b.title=`${u.description} · 정원 ${u.supply} · 조선소 ${u.yardLevel}단계 · ${u.unlock+1}번째 해역`;} );
   document.querySelectorAll('[data-order],#attack-move').forEach(b=>b.disabled=!commandable||!ui.selectedUnits.length);
+  const formation=$('spread-formation');formation.disabled=!commandable||ui.selectedUnits.length<2;formation.setAttribute('aria-pressed',String(ui.spreadFormation));formation.textContent=ui.spreadFormation?'분산 이동 · 12m':'밀집 이동 · 3m';
   $('repair-fleet').textContent=`함대 수리 ◆ ${fleetRepairCost(game)}`;$('repair-fleet').disabled=!safe||fleetRepairCost(game)<=0||game.resources<fleetRepairCost(game);
   const cards=new Map([...$('unit-list').querySelectorAll('[data-unit-card]')].map(card=>[Number(card.dataset.unitCard),card])),alive=new Set(units.map(u=>u.id));
   for(const [id,card] of cards)if(!alive.has(id))card.remove();
