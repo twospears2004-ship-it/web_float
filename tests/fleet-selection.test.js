@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import {sameTypeUnitIds,visibleProjection} from '../src/fleet-selection.js';
+import {GameView} from '../src/view.js';
+const fleet=()=>({fleet:{units:[{id:1,type:'skiff',hp:85,x:0,z:0,orders:[{type:'move',x:40,z:0}]},{id:2,type:'gunboat',hp:150,x:0,z:0},{id:3,type:'skiff',hp:1,x:2,z:0},{id:4,type:'skiff',hp:85,x:20,z:0},{id:5,type:'skiff',hp:0,x:0,z:0}],groups:{5:[1,2]}}});
+test('same-class selection preserves stable ship order and every saved field, including damaged ships and groups',()=>{const g=fleet(),before=structuredClone(g);assert.deepEqual(sameTypeUnitIds(g,1),[1,3,4]);assert.deepEqual(sameTypeUnitIds(g,2),[2]);assert.deepEqual(sameTypeUnitIds(g,5),[]);assert.deepEqual(sameTypeUnitIds(g,99),[]);assert.deepEqual(sameTypeUnitIds({},1),[]);assert.deepEqual(g,before);});
+test('screen selection excludes distant same-class ships while retaining a partially visible picked anchor',()=>{const g=fleet();assert.deepEqual(sameTypeUnitIds(g,1,[1,2,3,5]),[1,3]);assert.deepEqual(sameTypeUnitIds(g,4,[1,2,3]),[1,3,4]);assert.deepEqual(sameTypeUnitIds(g,1,[]),[1]);});
+test('clip projection rejects off-screen, behind-camera and non-finite points and includes viewport boundaries',()=>{assert(visibleProjection({x:1,y:-1,z:1}));for(const p of [{x:1.01,y:0,z:0},{x:0,y:-1.01,z:0},{x:0,y:0,z:1.01},{x:0,y:0,z:-1.01},{x:NaN,y:0,z:0},{x:0,y:Infinity,z:0}])assert.equal(visibleProjection(p),false);});
+test('actual Three camera projection returns living on-screen ship IDs without changing the fleet',()=>{const g=fleet(),before=structuredClone(g),camera=new THREE.OrthographicCamera(-5,5,5,-5,1,100);camera.position.set(0,0,10);camera.lookAt(0,0,0);camera.updateMatrixWorld(true);const ids=GameView.prototype.visibleUnitIds.call({camera},g);assert.deepEqual(ids,[1,2,3]);g.fleet.units.push({id:6,type:'skiff',hp:85,x:0,z:20});assert.deepEqual(GameView.prototype.visibleUnitIds.call({camera},g),ids);g.fleet.units.pop();assert.deepEqual(g,before);});

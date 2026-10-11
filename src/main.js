@@ -6,6 +6,7 @@ import {productionStats,atShore,productionTypes} from './production.js';
 import {unitTypes,fleetRules} from './fleet-content.js';
 import {recruitUnit,upgradeUnit,unitUpgradeCost,unitStats,fleetCapacity,fleetSupply,repairFleet,fleetRepairCost,orderUnits,dismissUnit,controlGroupNumbers,controlGroupUnits,assignControlGroup,guardCycle,refitUnit} from './fleet.js';
 import {renderFleetRefits} from './fleet-refit-view.js';
+import {sameTypeUnitIds} from './fleet-selection.js';
 import {structureHull,structureRepairCost,repairStructure} from './fortifications.js';
 import {wallEdges,wallEdge,wallAt} from './walls.js';
 import {getOperation,defenseContracts,defensePatterns} from './frontier-content.js';
@@ -323,6 +324,7 @@ function selectUnits(ids,append=false) {
   ui.selectedUnits=[...new Set(append?[...ui.selectedUnits,...ids]:ids)].filter(id=>living.has(id));ui.commandMode=true;ui.selected=null;ui.tool=null;ui.moving=null;ui.lastGroup=null;update(true);
 }
 function groupControlsAvailable(){return game.campaign&&ui.started&&$('start-overlay').hidden&&$('help-overlay').hidden&&$('settings-overlay').hidden&&!game.paused&&game.phase==='playing'&&!game.campaign.pendingChoice;}
+function selectUnitType(id,append=false,visibleIds=null){if(groupControlsAvailable())selectUnits(sameTypeUnitIds(game,id,visibleIds),append);}
 function storeGroup(number,append=false){
   if(!groupControlsAvailable())return;
   if(assignControlGroup(game,number,ui.selectedUnits,append)){ui.lastGroup=null;persist();update(true);}
@@ -355,13 +357,19 @@ $('build-shipyard').addEventListener('click',()=>setTool('shipyard'));
 document.querySelectorAll('[data-recruit]').forEach(b=>b.addEventListener('click',()=>{if(recruitUnit(game,b.dataset.recruit)){selectUnits([game.fleet.units.at(-1).id]);}update(true);persist();}));
 $('unit-list').addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
-  if(b.dataset.unitSelect)selectUnits([Number(b.dataset.unitSelect)],e.shiftKey);
+  if(b.dataset.unitSelect){if(e.ctrlKey)selectUnitType(Number(b.dataset.unitSelect),e.shiftKey);else selectUnits([Number(b.dataset.unitSelect)],e.shiftKey);}
   if(b.dataset.unitUpgrade){upgradeUnit(game,Number(b.dataset.unitUpgrade));update(true);persist();}
   if(b.dataset.unitDismiss){dismissUnit(game,Number(b.dataset.unitDismiss));update(true);persist();}
   if(b.dataset.unitGuard)issueOrder('guard',{id:Number(b.dataset.unitGuard)});
   if(b.dataset.unitRefit){refitUnit(game,Number(b.dataset.unitRefit),b.dataset.refit);update(true);persist();}
 });
+$('unit-list').addEventListener('keydown',e=>{
+  const b=e.target.closest('[data-unit-select]');
+  if(!b||e.key!=='Enter'||!e.ctrlKey||e.altKey||e.metaKey||e.repeat)return;
+  e.preventDefault();e.stopPropagation();selectUnitType(Number(b.dataset.unitSelect),e.shiftKey);
+});
 const fleetHelp=document.createElement('div');fleetHelp.className='fleet-help';fleetHelp.innerHTML='<h3>함대 지휘</h3><p>조선소 건설 → 함대 생산 → 원정 출항. Q로 함대 선택 모드를 켜고 클릭·드래그로 배를 선택합니다. Shift로 추가 선택, 우클릭으로 이동·적 공격, X로 공격 이동, H로 사수, G로 섬 호위, F로 전체 선택합니다. C로 선택 함대와 섬 시점을 전환하며 지도 클릭으로 먼 곳을 봅니다. 선택 모드에서 Alt+우클릭 드래그로 시점을 회전합니다. 유닛과 명령도 자동 저장됩니다.</p>';$('help-overlay').querySelector('dl').after(fleetHelp);
+fleetHelp.insertAdjacentHTML('beforeend','<p>선택 모드에서 아군을 두 번 클릭하면 화면 안의 같은 선종을 선택합니다. 함대 카드의 함선 이름을 Ctrl+클릭하거나 키보드로 Ctrl+Enter를 누르면 떨어져 있는 같은 선종 전체를 선택합니다. Shift를 함께 누르면 기존 선택에 추가합니다. 선택은 명령·예약·전대 편성을 바꾸지 않습니다.</p>');
 $('help-overlay').querySelector('.help-dialog>p').textContent='캠페인은 자동 저장되며 이어하기와 저장 파일 내보내기를 지원합니다. 비교 훈련은 저장되지 않습니다.';
 fleetHelp.insertAdjacentHTML('beforeend','<p>5–9번으로 전대를 선택하고 Ctrl+숫자로 등록합니다. Ctrl+Shift+숫자는 편성에 추가, Shift+숫자는 현재 선택에 추가합니다. 같은 번호를 두 번 누르면 전대 시점으로 이동합니다. 전대도 캠페인에 저장되며 능력은 기존 1–4번을 사용합니다.</p>');
 fleetHelp.insertAdjacentHTML('beforeend','<p>Shift+우클릭으로 이동·공격 명령을 최대 8개 예약하세요. X를 켜고 Shift+우클릭하면 공격 이동을 예약합니다. 선택한 함대의 경로와 목적지가 바다에 표시됩니다. 일반 우클릭은 새 명령으로 교체하고, H 사수·G 호위는 예약을 지웁니다. 예약 명령도 자동 저장됩니다.</p>');
@@ -389,6 +397,10 @@ canvas?.addEventListener('pointerup', e => {
   else {const x=Math.min(e.clientX,start.x),y=Math.min(e.clientY,start.y),right=Math.max(e.clientX,start.x),bottom=Math.max(e.clientY,start.y);selectUnits((game.fleet?.units || []).filter(u=>{const p=view.projectWorld(u);return u.hp>0&&p.x>=x&&p.x<=right&&p.y>=y&&p.y<=bottom;}).map(u=>u.id),start.shift);}
 });
 canvas?.addEventListener('pointercancel', () => { rightDrag = null;selectionDrag=null;$('selection-box').hidden=true; });
+canvas?.addEventListener('dblclick',e=>{
+  if(e.button!==0||e.altKey||!ui.commandMode||!groupControlsAvailable())return;
+  const hit=view.pickCombat(e.clientX,e.clientY);if(hit?.unit)selectUnitType(hit.unit,e.shiftKey,view.visibleUnitIds(game));
+});
 canvas?.addEventListener('pointerleave', () => { ui.hover = null; });
 canvas?.addEventListener('contextmenu', e => e.preventDefault());
 canvas?.addEventListener('wheel', e => { e.preventDefault(); view.zoom = Math.min(45, Math.max(13, view.zoom + e.deltaY * 0.018)); view.resize(); }, { passive: false });
@@ -480,7 +492,7 @@ function updateFleet() {
     let card=cards.get(u.id);
     if(!card){card=document.createElement('div');card.className='unit-card';card.dataset.unitCard=String(u.id);card.innerHTML=`<button data-unit-select="${u.id}"></button><p data-unit-stats></p><div class="meter"><i data-unit-hp></i></div><small data-unit-command></small><div class="utility-row"><button data-unit-upgrade="${u.id}"></button><button data-unit-dismiss="${u.id}">편성 해제</button></div><button data-unit-guard="${u.id}">선택 함대로 이 배 호위</button>`;$('unit-list').append(card);}
     const selected=ui.selectedUnits.includes(u.id),button=card.querySelector('[data-unit-select]');
-    card.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));button.textContent=`${unitTypes[u.type].icon} ${unitTypes[u.type].name} #${u.id} · ${u.level}단계`;
+    card.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));button.textContent=`${unitTypes[u.type].icon} ${unitTypes[u.type].name} #${u.id} · ${u.level}단계`;button.title='Ctrl+클릭 또는 Ctrl+Enter: 같은 선종 전체 선택 · Shift: 기존 선택에 추가';button.setAttribute('aria-keyshortcuts','Control+Enter Control+Shift+Enter');
     card.querySelector('[data-unit-upgrade]').textContent=`강화 ◆ ${unitUpgradeCost(u)}`;
     renderFleetRefits(card,game,u);
   }
@@ -675,7 +687,7 @@ function update(force = false) {
   if(game.campaign?.stage==='harbor')$('cleared-count').textContent='';
   if (view) document.querySelector('.compass-arrow').style.transform = `rotate(${-view.yaw * 180 / Math.PI}deg)`;
   $('controls-hint').innerHTML = game.mode === 'direct' ? 'W A S D 이동 <span>·</span> 휠 확대 <span>·</span> 우클릭 드래그 회전' : '항로 선택으로 출항 <span>·</span> 교전 위치 고정 <span>·</span> 휠 확대';
-  if(ui.commandMode)$('controls-hint').innerHTML=`${game.mode==='direct'?'W A S D 섬 이동 · ':''}드래그 선택 · 우클릭 이동/공격 · Alt+우클릭 회전 · C 시점`;
+  if(ui.commandMode)$('controls-hint').innerHTML=`${game.mode==='direct'?'W A S D 섬 이동 · ':''}드래그 선택 · 두 번 클릭: 동종 · 우클릭 이동/공격 · Alt+우클릭 회전 · C 시점`;
   if(game.campaign?.stage==='harbor' && game.mode==='direct')$('controls-hint').innerHTML='W A S D 정박지 이동 <span>·</span> 캠페인에서 임무 선택 후 출항';
   if(game.campaign?.pendingChoice)$('controls-hint').textContent='회수품을 선택하면 항해를 계속할 수 있습니다';
   if(game.operation?.kind==='defense')$('controls-hint').textContent='기지 방어 · 섬 정박 · 함대를 선택해 이동/공격';

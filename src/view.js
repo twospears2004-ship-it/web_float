@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {visibleProjection} from './fleet-selection.js';
 import { balance, facilityPosition, weaponStats, keyOf, expansionSlots, sitesFor } from './game.js';
 import {wallEdges,wallEdge} from './walls.js';
 import { getChapter, getMission } from './campaign-content.js';
@@ -115,6 +116,10 @@ export class GameView {
   projectWorld(point) {
     const p=new THREE.Vector3(point.x,point.y ?? 0,point.z).project(this.camera),r=this.renderer.domElement.getBoundingClientRect();
     return {x:r.left+(p.x+1)*r.width/2,y:r.top+(1-p.y)*r.height/2};
+  }
+  visibleUnitIds(g) {
+    const p=new THREE.Vector3();
+    return (g.fleet?.units||[]).filter(u=>u.hp>0&&visibleProjection(p.set(u.x,0.6,u.z).project(this.camera))).map(u=>u.id);
   }
   pointAt(clientX,clientY) {
     const r=this.renderer.domElement.getBoundingClientRect();this.mouse.set((clientX-r.left)/r.width*2-1,-(clientY-r.top)/r.height*2+1);this.raycaster.setFromCamera(this.mouse,this.camera);

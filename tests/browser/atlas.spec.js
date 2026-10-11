@@ -14,6 +14,9 @@ async function survey(page,index){
     await page.clock.runFor(1000);g=await snapshot(page);expect(g.phase).toBe('playing');
   }
   expect(g.campaign.pendingChoice?.site).toBe(index);expect(g.sites[index].cleared).toBe(true);
+  // A choice may be created in the last frame of runFor. The UI refreshes
+  // every 120ms; let that real refresh occur before clicking with a frozen clock.
+  await page.clock.runFor(150);
   if([1,7].includes(index))await expect(page.locator('[data-field-choice="study"]')).toBeDisabled();
   await page.locator('[data-field-choice]:enabled').first().click();return snapshot(page);
 }
