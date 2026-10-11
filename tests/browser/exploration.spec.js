@@ -36,6 +36,6 @@ test('banked exploration rejects malformed record imports and keeps the objectiv
   const envelope=JSON.parse(await fs.readFile('artifacts/exploration-fixtures/explore-coral-1-result.json','utf8'));
   envelope.payload.campaign.frontier.records['explore-coral-1'].surveyed='<img src=x onerror=alert(1)>';
   let hash=2166136261;for(const ch of JSON.stringify(envelope.payload))hash=Math.imul(hash^ch.charCodeAt(0),16777619);envelope.checksum=(hash>>>0).toString(16);
-  await page.locator('#save-file').setInputFiles({name:'invalid-record.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(envelope))});await expect(page.locator('#save-status')).toContainText('탐험 기록의 조사 수');
+  await page.locator('#save-file').setInputFiles({name:'invalid-record.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(envelope))});await expect(page.locator('#import-save-status')).toContainText('탐험 기록의 조사 수');
   const after=await snapshot(page);for(const key of ['campaign','operation','resources','fleet','sites','enemies'])expect(after[key]).toEqual(before[key]);expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('tidehold.campaign.v1')).payload)).toEqual(saved);await expect(page.locator('img[src="x"]')).toHaveCount(0);expect(errors).toEqual([]);
 });
