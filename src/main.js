@@ -70,9 +70,10 @@ app.innerHTML = `
         <div class="loop-guide"><span class="eyebrow">YOUR FIRST VOYAGE</span><ol><li><b>01</b><span>박격포를 건설하거나 연사포 강화</span></li><li><b>02</b><span>산호 여울에서 적을 처치</span></li><li><b>03</b><span>자원으로 섬 확장 · 다음 적에게</span></li></ol><button id="show-voyage" class="primary-button">탐험 항로 보기 <span>→</span></button></div>
       </div>
       <div id="voyage-panel" class="tab-panel" hidden>
-        <div class="section-heading"><span class="eyebrow">CHOOSE YOUR HORIZON</span><h2>다음 목적지</h2><p id="voyage-note"></p></div>
+        <div id="voyage-heading" class="section-heading"><span class="eyebrow">CHOOSE YOUR HORIZON</span><h2>다음 목적지</h2><p id="voyage-note"></p></div>
         <p id="operation-report" class="operation-report" hidden></p><div id="field-choice" class="field-choice" hidden aria-live="polite"></div>
         <div id="field-repairs" class="utility-row" hidden><button id="field-repair">섬 현장 수리 <small>◆ 35</small></button><button id="escort-repair">호위선 수리 <small>◆ 40</small></button><button id="field-resupply">능력 재보급 <small>◆ 75</small></button></div>
+        <p id="field-maintenance-note" class="maintenance-note" tabindex="-1" hidden></p>
         <label id="route-toggle" class="route-toggle" hidden><input id="show-route" type="checkbox" /> 전체 원정 경로 보기</label>
         <div id="site-list"></div><div id="enemy-intel" class="enemy-intel" hidden></div>
         <button id="home-button" class="home-button">⌂ 정박지로 귀환</button>
@@ -105,7 +106,7 @@ app.innerHTML = `
 `;
 const $ = (id) => document.getElementById(id);
 $('campaign-panel').insertAdjacentHTML('beforeend','<div id="frontier-panel"><h3>기지 방어 작전</h3><p class="board-help">시설마다 개별 내구도가 있습니다. 성벽으로 생산 시설을 가리고 함대를 배치하세요. 새 해역의 공세와 방어 기록이 열립니다.</p><div id="defense-list"></div><h3>함대 기지 공략</h3><p class="board-help">조선소와 함대가 필요합니다. 동력망과 지휘핵을 공략해 세 거점을 확보하세요. 보급 창고는 추가 자원입니다.</p><div id="siege-list"></div></div>');
-$('voyage-panel').insertAdjacentHTML('afterbegin','<div id="defense-control" class="field-choice" hidden><h3 id="defense-title"></h3><p id="defense-status"></p><div id="defense-plan" hidden></div><button id="start-defense-wave" class="primary-button">공세 시작</button></div>');
+$('voyage-panel').insertAdjacentHTML('afterbegin','<div id="defense-control" class="field-choice" hidden><h3 id="defense-title"></h3><p id="defense-status"></p><div id="defense-plan" hidden></div><button id="start-defense-wave" class="primary-button">공세 시작</button><details id="defense-enemies" hidden><summary id="defense-enemy-summary"></summary><div id="defense-enemy-roles"></div></details></div>');
 $('frontier-panel').insertAdjacentHTML('beforeend','<h3>미지 항로 탐험</h3><p class="board-help">함대로 신호를 발견하고 조사 순서를 고르세요. 필수 기록 3개로 귀환할 수 있습니다. 조사 기록은 여러 원정에 걸쳐 쌓이며 해도 완성 보상은 한 번 지급합니다.</p><div id="exploration-list"></div>');
 $('unit-list').insertAdjacentHTML('beforebegin',`<div class="fleet-groups"><h3>전대 편성</h3><div class="fleet-group-list">${controlGroupNumbers.map(number=>`<div><button data-control-group="${number}" aria-label="전대 ${number} 선택" title="${number}: 선택 · 두 번 누르면 시점 이동 · Shift: 추가 선택">${number}<small data-group-count>0기</small></button><button data-group-save="${number}" aria-label="선택 함대를 전대 ${number}에 등록" title="선택한 함선으로 편성 교체 · Shift: 기존 편성에 추가">등록</button></div>`).join('')}</div><p class="board-help">5–9 선택 · Ctrl+숫자 등록 · Ctrl+Shift+숫자 추가 등록. 선택 없이 등록하면 편성을 비웁니다. 능력은 1–4번입니다.</p></div>`);
 $('fleet-panel').insertAdjacentHTML('afterend',`<div id="atlas-panel" class="tab-panel" hidden><div class="section-heading"><span class="eyebrow">CHART THE UNKNOWN</span><h2>항로 기록</h2><p>다녀온 바다의 기록이 섬의 다음 성장을 엽니다.</p></div><label class="atlas-filter">기록할 해역<select id="atlas-chapter"><option value="current">현재 해역</option>${chapters.map((ch,i)=>`<option value="${i}">${ch.name}</option>`).join('')}</select></label><div id="atlas-content"></div></div>`);
@@ -483,6 +484,14 @@ let lastDefenseKey='';
 function updateDefense(force) {
   $('defense-plan').hidden=game.operation?.kind!=='defense'||game.operation.defenseVersion!==2;
   const c=game.campaign,op=game.operation,def=getOperation(op?.id);$('defense-control').hidden=!def||c?.stage!=='operation';$('frontier-panel').hidden=!c;
+  const defense=def?.kind==='defense'&&c?.stage==='operation';
+  $('voyage-heading').hidden=defense;$('site-list').hidden=defense;
+  const alive=defense?game.enemies.filter(e=>e.active&&e.hp>0&&!e.captured):[];
+  $('defense-enemies').hidden=!alive.length;
+  if(alive.length){const counts=new Map();for(const e of alive)counts.set(e.type,(counts.get(e.type)||0)+1);const key=`${op.id}:${op.round}:${[...counts].join('|')}`;
+    $('defense-enemy-summary').textContent=`현재 적 편대 · ${alive.length}기`;
+    if(force||$('defense-enemy-roles').dataset.key!==key){$('defense-enemy-roles').dataset.key=key;$('defense-enemy-roles').innerHTML=[...counts].map(([type,count])=>{const stats=enemyStats(game,alive.find(e=>e.type===type));return `<div class="enemy-role"><strong>${stats.name} ×${count}</strong><span>장갑 ${Math.round(stats.armor*100)}% · 사거리 ${stats.range}m</span><p>${enemyTactics[type]}</p></div>`;}).join('');}
+  }
   if(!c)return;
   const key=JSON.stringify([c.chapter,c.completed.length,c.frontier?.cleared,c.stage,game.paused]);
   if(force||key!==lastDefenseKey){lastDefenseKey=key;const available=new Set(availableDefenses(game).map(d=>d.id));$('defense-list').innerHTML=defenseContracts.filter(d=>d.chapter<=c.chapter).map(d=>{const record=c.frontier?.records[d.id];return `<button class="mission-card" data-defense="${d.id}" ${!available.has(d.id)||game.paused||c.stage!=='harbor'?'disabled':''}><span class="mission-type">${chapters[d.chapter].name} · ${defensePatterns[d.pattern].name}</span><strong>${d.name}${record?' ✓':''}</strong><small>${d.description}</small><span class="mission-cost">${d.waves}공세 · ◆ ${record?Math.floor(d.reward*0.4):d.reward}${record?` · 최고 ${record.score}점`:` · 연구 +${d.research}`}</span></button>`;}).join('');}
@@ -529,11 +538,15 @@ function updateCampaign(force) {
   document.querySelector('[data-tab="campaign"]').hidden = !c;
   $('mission-hud').hidden = !c || c.stage === 'harbor'; $('ability-bar').hidden = !c || c.stage !== 'mission';
   $('route-toggle').hidden=!c || c.stage!=='mission'; $('operation-report').hidden=!c || c.stage!=='mission';
-  $('field-repairs').hidden=!c || c.stage!=='mission';
+  const fieldVisible=!!c&&['mission','operation'].includes(c.stage);
+  $('field-repairs').hidden=!fieldVisible;$('field-maintenance-note').hidden=!fieldVisible;
   $('field-repair').disabled=!canManage(game)||game.paused||game.hull>=game.maxHull||game.resources<35;
   $('escort-repair').hidden=getMission(c?.missionId)?.kind!=='defend';
   $('escort-repair').disabled=!canManage(game)||game.paused||!c||c.allyHull>=c.allyMaxHull||game.resources<40;
   $('field-resupply').disabled=!canManage(game)||game.paused||!c?.abilityCharges||game.resources<75||Object.values(c.abilityCharges).every(n=>n>=12);
+  $('field-maintenance-note').textContent=game.paused?'일시정지를 해제하면 정비할 수 있습니다.':game.operation&&!game.operation.waiting?'공세를 격퇴한 뒤 섬 수리·능력 재보급을 할 수 있습니다.':game.combat?'교전을 마친 뒤 섬 수리·능력 재보급을 할 수 있습니다.':game.route?'항해를 마친 뒤 정비할 수 있습니다.':'정비 가능 · 섬 수리 최대130 · 재보급은 보호막·긴급 수리·파동 각+2회(한도12). 시설 복구와 수확은 섬 정비에서 확인하세요.';
+  const maintenanceButtons=[$('field-repair'),$('field-resupply'),$('escort-repair')],active=document.activeElement;
+  if(fieldVisible&&maintenanceButtons.includes(active)&&active.disabled)(maintenanceButtons.find(button=>!button.hidden&&!button.disabled)||$('field-maintenance-note')).focus({preventScroll:true});
   $('field-choice').hidden=!c?.pendingChoice;
   $('restart-button').textContent = c ? c.stage === 'mission' ? '임무 재시작' : '캠페인 지도' : '다시 시작';
   $('mode-button').textContent = c ? '⇄ 이동 방식 변경 · 진행 유지' : '⇄ 이동 방식 비교';
