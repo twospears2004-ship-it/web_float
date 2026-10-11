@@ -9,6 +9,12 @@ export function inspectionContext(g) {
   return [g.campaign?.missionId,g.operation?.id,g.operation?.round,g.campaign?.objectiveIndex,g.campaign?.encounterWave].join('|');
 }
 
+export function linkedPowerContacts(g,enemy){
+  if(!enemy||enemy.hp<=0||enemy.captured)return [];
+  const links=enemy.type==='generator'?g.enemies.filter(target=>generatorPowers(enemy,target)):['baseCore','gunTower'].includes(enemy.type)?g.enemies.filter(generator=>generatorPowers(generator,enemy)):[];
+  return links.sort((a,b)=>Math.hypot(a.x-enemy.x,a.z-enemy.z)-Math.hypot(b.x-enemy.x,b.z-enemy.z)||String(a.id).localeCompare(String(b.id)));
+}
+
 // Inspection is view state. Reading a contact must never activate it, cancel a
 // formation selection, or become part of a campaign save.
 export function inspectedContact(g,ui) {
@@ -20,10 +26,10 @@ export function inspectedContact(g,ui) {
   const ward=enemy.type==='bulwark'?bulwarkWard(g,enemy,g.island):null;
   const protectedCount=enemy.type==='bulwark'?g.enemies.filter(e=>protectsEnemy(enemy,e)).length:0;
   const repairRate=enemyRepairRate(g,stats),patients=repairRate?g.enemies.filter(e=>repairsEnemy(enemy,e)).length:0,reinforcement=enemyReinforcement(enemy,stats);
-  const support=[];
+  const support=[],powerLinks=linkedPowerContacts(g,enemy);
   const control=campaignRules.enemies[enemy.type].speed>0?slowDescription(enemy):'';if(control)support.push(control);
   if(enemy.type==='generator'){
-    const supplied=g.enemies.filter(target=>generatorPowers(enemy,target));
+    const supplied=powerLinks;
     support.push(supplied.length?`송전 · 지휘핵 ${supplied.filter(e=>e.type==='baseCore').length}기 · 방어탑 ${supplied.filter(e=>e.type==='gunTower').length}기`:'전력을 공급할 기지 없음');
   }else if(['baseCore','gunTower'].includes(enemy.type)){
     const count=basePower(g,enemy);support.push(`동력기 공급 ${count}곳 · ${count?'공급 중에는 장갑과 포탑 화력이 강화됩니다.':'공급 방호·포탑 강화 없음'}`);
@@ -36,7 +42,7 @@ export function inspectedContact(g,ui) {
     const {remaining,seconds,status}=reinforcement;
     support.push(status==='exhausted'?'증원 3회 소진':`증원 ${remaining}/3회 남음 · ${status==='waiting'?'교전 전 대기':status==='blocked'?'봉쇄 포대에 의해 차단':status==='slowed'?`둔화 중 준비 정지 · 남은 ${seconds.toFixed(1)}초`:`${seconds.toFixed(1)}초 후 폭발 해파리`}`);
   }
-  return {enemy,stats,selected,shield,repairRate,reinforcement,support:support.join(' / '),
+  return {enemy,stats,selected,shield,repairRate,reinforcement,powerLinks,support:support.join(' / '),
     attacking:selected.filter(u=>u.command.type==='attack'&&u.command.target===enemy.id).length,
     queued:selected.filter(u=>u.orders?.some(o=>o.type==='attack'&&o.target===enemy.id)).length,
     hint:enemy.type==='leviathan'?`${bossTactics[stats.pattern]?.hint || ''} 가까운 함대도 노립니다. 붉은 예고의 원래 위치에서 벗어나거나 비상 보호막으로 막으세요.`:enemyTactics[enemy.type],

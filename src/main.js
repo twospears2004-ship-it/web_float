@@ -19,6 +19,7 @@ import {explorations} from './exploration-content.js';
 import {atlasChart,atlasSummary,atlasHasSurvey} from './atlas.js';
 import {atlasMarkup} from './atlas-view.js';
 import {renderResearch} from './research-view.js';
+import {renderCombatLinks} from './combat-links-view.js';
 import {selectExplorationSite,finishExploration,knownSite,canExtract,isExploring} from './exploration.js';
 import {launchDefense,startDefenseWave,retryDefense,availableDefenses,availableSieges,availableExplorations} from './frontier.js';
 import { chapters, missions, getMission, getChapter, abilityDefinitions, bossTactics, enemyTactics } from './campaign-content.js';
@@ -350,6 +351,13 @@ $('fleet-panel').addEventListener('click',e=>{
 function issueOrder(type,point,append=false) {ui.lastGroup=null;if(orderUnits(game,ui.selectedUnits,type,point,append,ui.spreadFormation?'spread':'compact')){ui.attackMove=false;persist();}update(true);}
 function inspectEnemy(id) {ui.inspectedEnemy=id;ui.inspectionContext=inspectionContext(game);update(true);}
 function focusCombatControl(){($('fleet-toolbar').hidden?$('pause-button'):$('command-toggle')).focus({preventScroll:true});}
+$('contact-support').insertAdjacentHTML('afterend','<details id="contact-power-links" hidden><summary></summary><div id="contact-power-list" class="contact-power-list"></div><small>정보와 시점만 이동합니다. 함대 명령은 유지됩니다.</small></details>');
+$('contact-power-list').addEventListener('click',e=>{
+  const button=e.target.closest('[data-contact-link]');if(!button)return;
+  const contact=inspectedContact(game,ui),target=contact?.powerLinks.find(enemy=>enemy.id===button.dataset.contactLink);if(!target)return;
+  if(view){view.mapFocus={x:Math.max(-109,Math.min(109,target.x)),z:Math.max(-109,Math.min(109,target.z))};ui.fleetFocus=false;}
+  inspectEnemy(target.id);$('close-contact').focus({preventScroll:true});
+});
 $('close-contact').addEventListener('click',()=>{ui.inspectedEnemy=null;update(true);focusCombatControl();});
 $('attack-contact').addEventListener('click',e=>{const contact=inspectedContact(game,ui);if(contact?.commandable)issueOrder('attack',{id:contact.enemy.id},e.shiftKey);});
 $('command-toggle').addEventListener('click',()=>{ui.commandMode=!ui.commandMode;ui.tool=null;ui.hover=null;update(true);});
@@ -689,7 +697,9 @@ function updateFirstVoyage(){
 function updateContact() {
   const panel=$('contact-panel'),contact=inspectedContact(game,ui),focused=panel.contains(document.activeElement);
   panel.hidden=!contact;
+  const lostLinkFocus=renderCombatLinks($('contact-power-links'),$('contact-power-list'),contact);
   if(!contact){ui.inspectedEnemy=null;if(focused)focusCombatControl();return;}
+  if(lostLinkFocus)($('contact-power-links').hidden?$('close-contact'):$('contact-power-links').querySelector('summary')).focus({preventScroll:true});
   const {enemy,stats,selected,attacking,queued,commandable}=contact;
   $('contact-name').textContent=stats.name;
   $('contact-health').textContent=`내구도 ${Math.ceil(enemy.hp)} / ${Math.ceil(enemy.maxHp)} · ${enemy.active?'교전 중':'대기 중'}`;
