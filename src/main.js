@@ -4,7 +4,7 @@ import {installDialogKeyboard} from './dialog-keyboard.js';
 import { balance, createGame, createCampaign, advance, build, expand, expansionCost, upgrade, repair, collectProduction, demolish, moveFacility, setRoute, startEncounter, setTargeting, weaponStats, enemyStats, upgradeCost, canManage, expansionSlots, keyOf, distance, rulesFor, sitesFor } from './game.js';
 import {productionStats,atShore,productionTypes} from './production.js';
 import {unitTypes,fleetRules} from './fleet-content.js';
-import {recruitUnit,upgradeUnit,unitUpgradeCost,unitStats,fleetCapacity,fleetSupply,repairFleet,fleetRepairCost,orderUnits,dismissUnit,controlGroupNumbers,controlGroupUnits,assignControlGroup} from './fleet.js';
+import {recruitUnit,upgradeUnit,unitUpgradeCost,unitStats,fleetCapacity,fleetSupply,repairFleet,fleetRepairCost,orderUnits,dismissUnit,controlGroupNumbers,controlGroupUnits,assignControlGroup,guardCycle} from './fleet.js';
 import {structureHull,structureRepairCost,repairStructure} from './fortifications.js';
 import {wallEdges,wallEdge,wallAt} from './walls.js';
 import {getOperation,defenseContracts,defensePatterns} from './frontier-content.js';
@@ -357,17 +357,20 @@ $('unit-list').addEventListener('click',e=>{
   if(b.dataset.unitSelect)selectUnits([Number(b.dataset.unitSelect)],e.shiftKey);
   if(b.dataset.unitUpgrade){upgradeUnit(game,Number(b.dataset.unitUpgrade));update(true);persist();}
   if(b.dataset.unitDismiss){dismissUnit(game,Number(b.dataset.unitDismiss));update(true);persist();}
+  if(b.dataset.unitGuard)issueOrder('guard',{id:Number(b.dataset.unitGuard)});
 });
 const fleetHelp=document.createElement('div');fleetHelp.className='fleet-help';fleetHelp.innerHTML='<h3>함대 지휘</h3><p>조선소 건설 → 함대 생산 → 원정 출항. Q로 함대 선택 모드를 켜고 클릭·드래그로 배를 선택합니다. Shift로 추가 선택, 우클릭으로 이동·적 공격, X로 공격 이동, H로 사수, G로 섬 호위, F로 전체 선택합니다. C로 선택 함대와 섬 시점을 전환하며 지도 클릭으로 먼 곳을 봅니다. 선택 모드에서 Alt+우클릭 드래그로 시점을 회전합니다. 유닛과 명령도 자동 저장됩니다.</p>';$('help-overlay').querySelector('dl').after(fleetHelp);
 $('help-overlay').querySelector('.help-dialog>p').textContent='캠페인은 자동 저장되며 이어하기와 저장 파일 내보내기를 지원합니다. 비교 훈련은 저장되지 않습니다.';
 fleetHelp.insertAdjacentHTML('beforeend','<p>5–9번으로 전대를 선택하고 Ctrl+숫자로 등록합니다. Ctrl+Shift+숫자는 편성에 추가, Shift+숫자는 현재 선택에 추가합니다. 같은 번호를 두 번 누르면 전대 시점으로 이동합니다. 전대도 캠페인에 저장되며 능력은 기존 1–4번을 사용합니다.</p>');
 fleetHelp.insertAdjacentHTML('beforeend','<p>Shift+우클릭으로 이동·공격 명령을 최대 8개 예약하세요. X를 켜고 Shift+우클릭하면 공격 이동을 예약합니다. 선택한 함대의 경로와 목적지가 바다에 표시됩니다. 일반 우클릭은 새 명령으로 교체하고, H 사수·G 호위는 예약을 지웁니다. 예약 명령도 자동 저장됩니다.</p>');
 $('fleet-panel').querySelector('.board-help').textContent+=' Shift+우클릭: 이동·공격 예약(최대 8개). H/G: 예약 취소.';
+fleetHelp.insertAdjacentHTML('beforeend','<p>함선을 선택하고 다른 아군 배에 우클릭하면 그 배를 따라가며 호위합니다. 함대 카드의 «선택 함대로 이 배 호위» 버튼도 사용할 수 있습니다. 정비정은 이동하며 주변 손상 아군을 복구하고 전투 함선은 이미 교전 중인 적에게만 사격합니다. 아군 호위는 예약을 지우며 H/G로 사수·섬 호위로 돌아옵니다. 하늘색 원은 호위 대상입니다.</p>');
+$('fleet-panel').querySelector('.board-help').textContent+=' 아군 우클릭: 해당 배 호위(예약 취소). 정비정을 전투 함선에 붙여 지원하세요.';
 let rightDrag = null,selectionDrag=null;
 const canvas = view?.renderer.domElement;
 canvas?.addEventListener('pointerdown', e => {
   if(!ui.started||game.paused||game.phase!=='playing')return;
-  if(e.button===2&&ui.commandMode&&!e.altKey){const hit=view.pickCombat(e.clientX,e.clientY),point=view.pointAt(e.clientX,e.clientY);if(hit?.enemy){inspectEnemy(hit.enemy);issueOrder('attack',{id:hit.enemy},e.shiftKey);}else if(point)issueOrder(ui.attackMove?'attackMove':'move',point,e.shiftKey);return;}
+  if(e.button===2&&ui.commandMode&&!e.altKey){const hit=view.pickCombat(e.clientX,e.clientY),point=view.pointAt(e.clientX,e.clientY);if(hit?.enemy){inspectEnemy(hit.enemy);issueOrder('attack',{id:hit.enemy},e.shiftKey);}else if(hit?.unit&&!e.shiftKey)issueOrder('guard',{id:hit.unit});else if(point)issueOrder(ui.attackMove?'attackMove':'move',point,e.shiftKey);return;}
   if (e.button === 2 || e.button===1) { rightDrag = e.clientX; canvas.setPointerCapture(e.pointerId); }
   else if(e.button===0&&ui.commandMode){selectionDrag={x:e.clientX,y:e.clientY,shift:e.shiftKey};canvas.setPointerCapture(e.pointerId);}
   else if (e.button === 0) {const hit=!ui.tool&&game.campaign?view.pickCombat(e.clientX,e.clientY):null;if(hit?.enemy){inspectEnemy(hit.enemy);return;} const tile = view.pick(e.clientX, e.clientY,ui.tool); if (tile) chooseTile(tile.x, tile.z,ui.tool==='wall'||(ui.tool==='move'&&game.facilities.find(f=>f.id===ui.moving)?.type==='wall')?tile.edge:undefined,tile.facilityId); else { ui.selected = null; update(true); } }
@@ -473,14 +476,14 @@ function updateFleet() {
   else $('unit-list').querySelector('.board-help')?.remove();
   for(const u of units){
     let card=cards.get(u.id);
-    if(!card){card=document.createElement('div');card.className='unit-card';card.dataset.unitCard=String(u.id);card.innerHTML=`<button data-unit-select="${u.id}"></button><p data-unit-stats></p><div class="meter"><i data-unit-hp></i></div><small data-unit-command></small><div class="utility-row"><button data-unit-upgrade="${u.id}"></button><button data-unit-dismiss="${u.id}">편성 해제</button></div>`;$('unit-list').append(card);}
+    if(!card){card=document.createElement('div');card.className='unit-card';card.dataset.unitCard=String(u.id);card.innerHTML=`<button data-unit-select="${u.id}"></button><p data-unit-stats></p><div class="meter"><i data-unit-hp></i></div><small data-unit-command></small><div class="utility-row"><button data-unit-upgrade="${u.id}"></button><button data-unit-dismiss="${u.id}">편성 해제</button></div><button data-unit-guard="${u.id}">선택 함대로 이 배 호위</button>`;$('unit-list').append(card);}
     const selected=ui.selectedUnits.includes(u.id),button=card.querySelector('[data-unit-select]');
     card.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));button.textContent=`${unitTypes[u.type].icon} ${unitTypes[u.type].name} #${u.id} · ${u.level}단계`;
     card.querySelector('[data-unit-upgrade]').textContent=`강화 ◆ ${unitUpgradeCost(u)}`;
   }
-  for(const u of units){const card=document.querySelector(`[data-unit-card="${u.id}"]`),stats=unitStats(game,u),near=distance(u,game.island)<=fleetRules.serviceRange;card.querySelector('[data-unit-stats]').textContent=`내구도 ${Math.ceil(u.hp)} / ${u.maxHp} · 사거리 ${stats.range}m · ${stats.heal?`복구 ${Math.round(stats.heal)}`:`피해 ${Math.round(stats.damage)}`}`;card.querySelector('[data-unit-hp]').style.width=`${u.hp/u.maxHp*100}%`;card.querySelector('[data-unit-command]').textContent={escort:'섬 호위',hold:'위치 사수',move:'이동 중',attackMove:'공격하며 이동',attack:'집중 공격'}[u.command.type]+(u.orders?.length?` · 예약 ${u.orders.length}`:'');card.querySelector('[data-unit-upgrade]').disabled=!safe||!near||u.level>=Math.min(6,2+Math.floor(c.chapter/2))||game.resources<unitUpgradeCost(u);card.querySelector('[data-unit-dismiss]').disabled=!safe||!near;}
+  for(const u of units){const card=document.querySelector(`[data-unit-card="${u.id}"]`),stats=unitStats(game,u),near=distance(u,game.island)<=fleetRules.serviceRange;card.querySelector('[data-unit-stats]').textContent=`내구도 ${Math.ceil(u.hp)} / ${u.maxHp} · 사거리 ${stats.range}m · ${stats.heal?`복구 ${Math.round(stats.heal)}`:`피해 ${Math.round(stats.damage)}`}`;card.querySelector('[data-unit-hp]').style.width=`${u.hp/u.maxHp*100}%`;card.querySelector('[data-unit-command]').textContent={escort:'섬 호위',hold:'위치 사수',move:'이동 중',attackMove:'공격하며 이동',attack:'집중 공격',guard:`아군 #${u.command.target} 호위`}[u.command.type]+(u.orders?.length?` · 예약 ${u.orders.length}`:'');card.querySelector('[data-unit-upgrade]').disabled=!safe||!near||u.level>=Math.min(6,2+Math.floor(c.chapter/2))||game.resources<unitUpgradeCost(u);card.querySelector('[data-unit-dismiss]').disabled=!safe||!near;const guards=ui.selectedUnits.filter(id=>id!==u.id);card.querySelector('[data-unit-guard]').disabled=!commandable||!guards.length||guardCycle(game.fleet,guards,u.id);}
   if(focusedUnitAction&&(!focusedUnitAction.isConnected||focusedUnitAction.disabled)){
-    const id=focusedUnitAction.dataset.unitUpgrade||focusedUnitAction.dataset.unitDismiss||focusedUnitAction.dataset.unitSelect;
+    const id=focusedUnitAction.dataset.unitUpgrade||focusedUnitAction.dataset.unitDismiss||focusedUnitAction.dataset.unitSelect||focusedUnitAction.dataset.unitGuard;
     const fallback=document.querySelector(`[data-unit-select="${id}"]`)||$('unit-list').querySelector('[data-unit-select]')||$('select-all-units');
     fallback.focus({preventScroll:true});
   }

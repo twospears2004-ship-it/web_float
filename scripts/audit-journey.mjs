@@ -23,11 +23,13 @@ import {wallEdges,validWallSlot} from '../src/walls.js';
 
 let g=createCampaign('destination');build(g,'cannon',-1,-1);
 const limit=Number(process.argv.find(a=>a.startsWith('--limit='))?.slice(8) || Infinity);
+const supportGuard=process.argv.includes('--support-guard');
 const requestedOutput=process.argv.find(a=>a.startsWith('--output='))?.slice(9) || 'artifacts',outputPath=path.resolve(requestedOutput),relativeOutput=path.relative(path.resolve('artifacts'),outputPath);
 if(relativeOutput==='..'||relativeOutput.startsWith(`..${path.sep}`)||path.isAbsolute(relativeOutput))throw new Error('Journey output must stay inside artifacts.');
 const output=path.relative(process.cwd(),outputPath).split(path.sep).join('/');
 if(!(limit>=1))throw new Error('Limit must be positive.');
 const report={kind:'fresh continuous story and frontier model',date:new Date().toISOString(),records:[],blocked:null,harvested:0,recall:{calls:0,seconds:0,alreadyInRange:0,notRejoined:0},warning:'One continuous normal economy; simulated combat time does not certify human 20-hour playtime or Steam quality.'};
+report.supportGuard=supportGuard;report.outlays={fleetProduction:0,fleetUpgrade:0,fleetRepair:0,structureRepair:0,islandRepair:0,resupply:0};
 await fs.mkdir(`${output}/journey-fixtures`,{recursive:true});
 const itinerary=Array.from({length:12},(_,chapter)=>[
   ...missions.filter(m=>m.chapter===chapter).map(item=>({item,kind:'story'})),
@@ -88,11 +90,12 @@ function spreadWeapons(){
   }
 }
 function paidRefit(){
-  harvest();for(const f of g.facilities)repairStructure(g,f.id);repairFleet(g);
-  while(g.hull<g.maxHull&&g.resources>=rulesFor(g).repairCost&&repair(g)){}
+  harvest();for(const f of g.facilities)spend('structureRepair',()=>repairStructure(g,f.id));spend('fleetRepair',()=>repairFleet(g));
+  while(g.hull<g.maxHull&&g.resources>=rulesFor(g).repairCost&&spend('islandRepair',()=>repair(g))){}
   while(g.campaign.allyHull<g.campaign.allyMaxHull*0.9&&g.resources>=40&&repairEscort(g)){}
-  if(g.resources>300&&g.campaign.abilityCharges.mend<2)resupplyAbilities(g);
+  if(g.resources>300&&g.campaign.abilityCharges.mend<2)spend('resupply',()=>resupplyAbilities(g));
 }
+function spend(category,action){const before=g.resources,result=action();if(result)report.outlays[category]+=Math.max(0,before-g.resources);return result;}
 function prepareColony(){
   paidRefit();let researched=true;
   while(researched){researched=false;for(const id of ['reactor','ballistics','bulkhead','logistics','navigation','cultivation','distributed','precision','cartography']){const tech=technologies.find(t=>t.id===id);if(g.campaign.chapter>=(tech.unlock||0)&&(!tech.materials||g.resources>=researchCost(g,tech).materials+150)&&researchTechnology(g,id))researched=true;}}
@@ -112,8 +115,13 @@ function prepareFleet(){
   }
   const yard=g.facilities.find(f=>f.type==='shipyard');while(yard&&yard.level<3&&g.resources>500&&upgrade(g,yard.id)){}
   const chapter=g.campaign.chapter,types=chapter>=3?['torpedo','gunboat','tender','skiff']:chapter>=2?['torpedo','gunboat','skiff']:chapter>=1?['gunboat','skiff','skiff']:['skiff','skiff'];
-  for(const type of types)if(g.resources>180&&g.fleet.units.filter(u=>u.hp>0&&u.type===type).length<(type==='skiff'?2:1))recruitUnit(g,type);
-  for(const u of g.fleet.units)while(g.resources>400&&upgradeUnit(g,u.id)){}
+  for(const type of types)if(g.resources>180&&g.fleet.units.filter(u=>u.hp>0&&u.type===type).length<(type==='skiff'?2:1))spend('fleetProduction',()=>recruitUnit(g,type));
+  for(const u of g.fleet.units)while(g.resources>400&&spend('fleetUpgrade',()=>upgradeUnit(g,u.id))){}
+}
+function guardSupport(){
+  if(!supportGuard)return;
+  const living=g.fleet.units.filter(u=>u.hp>0),ward=living.find(u=>u.type==='torpedo')||living.find(u=>u.type==='gunboat')||living.find(u=>u.type==='skiff');
+  if(ward)for(const u of living.filter(u=>u.type==='tender'))if(u.command.type!=='guard'||u.command.target!==ward.id)orderUnits(g,[u.id],'guard',{id:ward.id});
 }
 function faceSite(){
   const site=g.catalog[g.campaign.objectiveIndex],dx=site.x-g.island.x,dz=site.z-g.island.z,desired=Math.abs(dx)>Math.abs(dz)?{x:Math.sign(dx),z:0}:{x:0,z:Math.sign(dz)};
@@ -148,7 +156,7 @@ function recall(){
 async function finishRecord(item,kind){
   validateCampaign(g);const restored=decodeSave(encodeSave(g));
   for(const key of ['campaign','operation','resources','facilities','fleet','enemies','sites','checkpoint'])assert.deepEqual(canonicalSavedValue(restored[key]),canonicalSavedValue(g[key]),`Saved ${key} differs after ${item.id}`);
-  const record={...recordFor(g,item,kind),harvested:report.harvested,recall:{...report.recall},sourceHash:report.runtime.sourceHash,controllerHash:report.runtime.controllerHash};
+  const record={...recordFor(g,item,kind),harvested:report.harvested,recall:{...report.recall},outlays:{...report.outlays},sourceHash:report.runtime.sourceHash,controllerHash:report.runtime.controllerHash};
   report.records.push(record);console.log(JSON.stringify({id:record.id,kind,result:record.result,seconds:record.seconds,resources:record.resources,army:record.army.length}));
   if(!['mission-complete','campaign-complete'].includes(g.phase)){report.blocked={id:item.id,message:g.message,round:g.operation?.round,objective:g.campaign.objectiveIndex,island:g.island,enemies:g.enemies.filter(e=>e.hp>0).map(e=>({type:e.type,hp:e.hp,x:e.x,z:e.z})),fleet:g.fleet};return false;}
   await fs.writeFile(`${output}/journey-fixtures/${item.id}-result.json`,encodeSave(g));returnToHarbor(g);await persistProgress();return true;
@@ -194,6 +202,7 @@ async function frontier(d){
         if(d.kind==='explore'&&!target&&g.campaign.encounterWave+1>=g.catalog[lastNode].waves&&lastOrder!==`scan-${lastNode}`){if(alive().length)orderUnits(g,alive(),'move',g.catalog[lastNode]);else setRoute(g,g.catalog[lastNode].id);lastOrder=`scan-${lastNode}`;}
       }
       abilities();
+      guardSupport();
     }
     advance(g,1/60);
   }

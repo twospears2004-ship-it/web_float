@@ -1,6 +1,7 @@
 import { missions, getMission, missionSites, campaignRules, technologies } from './campaign-content.js';
 import { fieldDecisions } from './expedition-content.js';
 import {unitTypes,fleetRules} from './fleet-content.js';
+import {guardCycle} from './fleet.js';
 import {emptyFleet,controlGroupNumbers} from './fleet.js';
 import {migrateAtlas,atlasSummary} from './atlas.js';
 import {getExploration,explorationSites,explorations} from './exploration-content.js';
@@ -34,9 +35,10 @@ function validateFleet(fleet) {
   for(const u of fleet.units) {
     check(integer(u.id,1,fleet.nextId-1)&&!ids.has(u.id)&&Object.hasOwn(unitTypes,u.type)&&integer(u.level,1,6),'함대 식별자 또는 선종이 올바르지 않습니다.');ids.add(u.id);
     check(position(u,110)&&finite(u.maxHp,1,10000)&&finite(u.hp,0,u.maxHp)&&finite(u.heading,-Math.PI,Math.PI)&&finite(u.aim,-Math.PI,Math.PI)&&finite(u.cooldown,0,10)&&finite(u.repath,0,1),'함대 전투 상태가 올바르지 않습니다.');
-    check(u.command&&['move','attackMove','attack','hold','escort'].includes(u.command.type),'함대 명령을 복원할 수 없습니다.');
+    check(u.command&&['move','attackMove','attack','hold','escort','guard'].includes(u.command.type),'함대 명령을 복원할 수 없습니다.');
     if(['move','attackMove'].includes(u.command.type))check(position(u.command,110),'함대 이동 목표가 올바르지 않습니다.');
     if(u.command.type==='attack')check(typeof u.command.target==='string'&&u.command.target.length<100,'함대 공격 목표가 올바르지 않습니다.');
+    if(u.command.type==='guard')check(integer(u.command.target,1,fleet.nextId-1)&&u.command.target!==u.id&&!guardCycle(fleet,[u.id],u.command.target),'함대 호위 목표가 올바르지 않습니다.');
     if(u.orders!==undefined)check(Array.isArray(u.orders)&&u.orders.length<=fleetRules.maximumQueuedOrders&&u.orders.every(order=>order&&(['move','attackMove'].includes(order.type)?position(order,110):order.type==='attack'&&typeof order.target==='string'&&order.target.length>0&&order.target.length<100)),'함대 예약 명령이 올바르지 않습니다.');
     check(Array.isArray(u.waypoints)&&u.waypoints.length<=128&&u.waypoints.every(p=>position(p,110)),'함대 항로가 올바르지 않습니다.');
   }

@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import {livePlayer,needsStoryDeparture} from './live-player.mjs';
 import {canonicalSavedValue,harborFleetValue} from './save-comparison.mjs';
 import {findResumeObservation} from './live-resume-observation.mjs';
+import {atomicAuditJson} from './atomic-audit.mjs';
 const arg=(name,fallback)=>process.argv.find(a=>a.startsWith(`--${name}=`))?.slice(name.length+3)||fallback;
 const project=process.cwd(),output=path.resolve(arg('output','artifacts/live-journey')),port=Number(arg('port','5192')),resuming=process.argv.includes('--resume');let limit=arg('limit','')?Number(arg('limit','')):undefined;
 const relative=path.relative(path.resolve('artifacts'),output);
@@ -32,7 +33,7 @@ if(resuming&&!previous.current)for(const index of priorRuns.filter(Boolean).sort
 const resumeObservation=resuming?findResumeObservation(previous,archivedObservations):null,resumeCurrent=resumeObservation?.current;
 const runIndex=Math.max(previous?.sessions?.length||Number(!!previous),...priorRuns)+1,controllerFolder=resuming?path.join(output,`run-${runIndex}`):output;
 if(resuming)await fs.mkdir(controllerFolder,{recursive:false});
-for(const name of ['live-journey.mjs','live-player.mjs','save-comparison.mjs','live-resume-observation.mjs'])await fs.copyFile(path.join(project,'scripts',name),path.join(controllerFolder,name));
+for(const name of ['live-journey.mjs','live-player.mjs','save-comparison.mjs','live-resume-observation.mjs','atomic-audit.mjs'])await fs.copyFile(path.join(project,'scripts',name),path.join(controllerFolder,name));
 const hash=b=>createHash('sha256').update(b).digest('hex'),source=createHash('sha256');
 for(const name of (await fs.readdir(path.join(frozen,'src'))).filter(n=>/\.(js|json)$/.test(n)).sort()){source.update(name);source.update(await fs.readFile(path.join(frozen,'src',name)));}
 const config=path.join(output,'vite.config.mjs');await fs.writeFile(config,`export default ${JSON.stringify({root:frozen,cacheDir:path.join(frozen,'.vite-cache'),server:{host:'127.0.0.1',port,strictPort:true}})};\n`);
@@ -79,7 +80,7 @@ async function progress(){
   report.sortieSeconds=report.records.reduce((n,r)=>n+r.gameSeconds,0)+(lastState&&['mission','operation'].includes(lastState.campaign.stage)&&!report.records.some(r=>r.id===(lastState.operation?.id||lastState.campaign.missionId))?lastState.campaign.missionSeconds:0);
   report.current=lastState?.campaign?{id:lastState.operation?.id||lastState.campaign.missionId,phase:lastState.phase,paused:lastState.paused,stage:lastState.campaign.stage,objective:lastState.campaign.objectiveIndex,round:lastState.operation?.round,seconds:lastState.campaign.missionSeconds,resources:lastState.resources,hull:lastState.hull,maxHull:lastState.maxHull,ships:lastState.fleet.units.filter(u=>u.hp>0).length}:lastState?{phase:lastState.phase,hasCampaign:false}:resumeCurrent||null;
   report.currentObservation=lastState?{kind:'live',observedAt:report.updatedAt}:resumeObservation?{kind:'prior-terminal',source:resumeObservation.source,observedAt:resumeObservation.observedAt}:null;
-  const target=path.join(output,'live-audit.json');await fs.writeFile(`${target}.tmp`,JSON.stringify(report,null,2));await fs.rename(`${target}.tmp`,target);
+  await atomicAuditJson(path.join(output,'live-audit.json'),report);
 }
 async function sample(){
   const graphics=await page.evaluate(()=>window.__TIDEHOLD__.rendererInfo()),timing=await page.evaluate(()=>({now:performance.now(),visibility:document.visibilityState}));

@@ -65,9 +65,17 @@ export function dismissUnit(g,id) {
   const u=g.fleet?.units.find(u=>u.id===id&&u.hp>0);if(!manageable(g)||!u||dist(u,g.island)>fleetRules.serviceRange)return false;
   g.fleet.units=g.fleet.units.filter(other=>other!==u);pruneControlGroups(g.fleet);g.message='함대를 편성에서 해제했습니다.';return true;
 }
+export function guardCycle(fleet,ids,targetId) {
+  const seen=new Set(ids);let ward=fleet?.units.find(u=>u.id===targetId&&u.hp>0);
+  while(ward){if(seen.has(ward.id))return true;seen.add(ward.id);ward=ward.command?.type==='guard'?fleet.units.find(u=>u.id===ward.command.target&&u.hp>0):null;}
+  return false;
+}
 export function orderUnits(g,ids,type,point,append=false) {
-  if(!g.campaign||!['mission','operation'].includes(g.campaign.stage)||g.phase!=='playing'||g.paused||g.campaign.pendingChoice||!['move','attackMove','attack','hold','escort'].includes(type))return false;
-  const units=(g.fleet?.units || []).filter(u=>u.hp>0&&ids.includes(u.id));if(!units.length)return false;
+  if(!g.campaign||!['mission','operation'].includes(g.campaign.stage)||g.phase!=='playing'||g.paused||g.campaign.pendingChoice||!['move','attackMove','attack','hold','escort','guard'].includes(type))return false;
+  const ward=type==='guard'?g.fleet?.units.find(u=>u.id===point?.id&&u.hp>0):null;
+  if(type==='guard'&&!ward)return deny(g,'호위할 살아 있는 아군 함선을 선택하세요.');
+  const units=(g.fleet?.units || []).filter(u=>u.hp>0&&ids.includes(u.id)&&u!==ward);if(!units.length)return false;
+  if(ward&&guardCycle(g.fleet,units.map(u=>u.id),ward.id))return deny(g,'서로를 따라가는 호위는 지정할 수 없습니다. 한 함선에 이동 명령을 먼저 내리세요.');
   const enemy=type==='attack'?g.enemies.find(e=>e.id===point?.id&&e.hp>0&&!e.captured):null;
   if(type==='attack'&&!enemy)return false;
   if(['move','attackMove'].includes(type)&&(!Number.isFinite(point?.x)||!Number.isFinite(point?.z)||Math.abs(point.x)>110||Math.abs(point.z)>110))return false;
@@ -79,13 +87,13 @@ export function orderUnits(g,ids,type,point,append=false) {
   for(const [i,u] of units.entries()) {
     const destination=['move','attackMove'].includes(type)?waterPoint(g,{x:point.x+(i%width-(width-1)/2)*3,z:point.z+(Math.floor(i/width)-(Math.ceil(units.length/width)-1)/2)*3},unitTypes[u.type].radius,destinations):null;
     if(destination)destinations.push({...destination,radius:unitTypes[u.type].radius});
-    const command=enemy?{type,target:enemy.id}:destination?{type,...destination}:{type};
+    const command=enemy?{type,target:enemy.id}:ward?{type,target:ward.id}:destination?{type,...destination}:{type};
     if(queued&&['move','attackMove','attack'].includes(u.command.type)){
       u.orders||=[];u.orders.push(command);
     }else {u.command=command;delete u.orders;u.waypoints=[];u.repath=0;}
   }
   if(['move','attackMove','attack'].includes(type))g.campaign.waitingForDeparture=false;
-  g.message=`함대 ${units.length}기: ${{move:'이동',attackMove:'공격 이동',attack:'집중 공격',hold:'위치 사수',escort:'섬 호위'}[type]} ${queued?'예약':'명령'}.`;return true;
+  g.message=`함대 ${units.length}기: ${{move:'이동',attackMove:'공격 이동',attack:'집중 공격',hold:'위치 사수',escort:'섬 호위',guard:`아군 #${ward?.id} 호위`}[type]} ${queued?'예약':'명령'}.`;return true;
 }
 function finishOrder(g,u) {
   let next;
@@ -139,12 +147,12 @@ export function tickFleet(g,dt,damageEnemy,enemyStats) {
   const living=g.fleet.units.filter(u=>u.hp>0);
   for(const [index,u] of living.entries()) {
     if(!navigable(g,u,unitTypes[u.type].radius)){Object.assign(u,waterPoint(g,u,unitTypes[u.type].radius));u.waypoints=[];u.repath=0;}
-    if(u.command?.type==='attack'&&!g.enemies.some(e=>e.id===u.command.target&&e.hp>0&&!e.captured))finishOrder(g,u);
+    if(u.command?.type==='attack'&&!g.enemies.some(e=>e.id===u.command.target&&e.hp>0&&!e.captured)||u.command?.type==='guard'&&!living.some(other=>other.id===u.command.target&&other.hp>0))finishOrder(g,u);
     const stats=unitStats(g,u),command=u.command || {type:'escort'};u.cooldown=Math.max(0,u.cooldown-dt);
-    const automatic=!g.campaign.waitingForDeparture && ['escort','hold','attackMove'].includes(command.type);
+    const automatic=!g.campaign.waitingForDeparture && ['escort','hold','attackMove','guard'].includes(command.type);
     // Passive defense reacts to an existing engagement. Only a deliberate
     // attack or attack-move may open fire on an undiscovered opponent.
-    let target=command.type==='attack'?g.enemies.find(e=>e.id===command.target&&e.hp>0&&!e.captured):automatic?g.enemies.filter(e=>e.hp>0&&!e.captured&&(e.active||command.type==='attackMove')&&dist(u,e)<=stats.range+(command.type==='hold'?0:9)).sort((a,b)=>(['bomber','tender','carrier'].includes(a.type)?0:1)-(['bomber','tender','carrier'].includes(b.type)?0:1)||dist(u,a)-dist(u,b))[0]:null;
+    let target=command.type==='attack'?g.enemies.find(e=>e.id===command.target&&e.hp>0&&!e.captured):automatic?g.enemies.filter(e=>e.hp>0&&!e.captured&&(e.active||command.type==='attackMove')&&dist(u,e)<=stats.range+(['hold','guard'].includes(command.type)?0:9)).sort((a,b)=>(['bomber','tender','carrier'].includes(a.type)?0:1)-(['bomber','tender','carrier'].includes(b.type)?0:1)||dist(u,a)-dist(u,b))[0]:null;
     if(stats.heal) {
       const candidates=living.filter(other=>other.hp<other.maxHp&&dist(u,other)<=stats.range);
       if(g.hull<g.maxHull&&hullDistance(g,u)<=stats.range)candidates.push({ship:true,hp:g.hull,maxHp:g.maxHull});
@@ -168,6 +176,14 @@ export function tickFleet(g,dt,damageEnemy,enemyStats) {
       }
     }else if(['move','attackMove'].includes(command.type)){if(sail(g,u,command,dt,stats.speed,stats.radius))finishOrder(g,u);}
     else if(command.type==='escort')sail(g,u,anchor(g,index,living.length),dt,stats.speed,stats.radius);
+    if(command.type==='guard'){
+      const ward=living.find(other=>other.id===command.target),guards=living.filter(other=>other.command?.type==='guard'&&other.command.target===ward.id),slot=guards.indexOf(u),width=Math.min(3,guards.length),side=(slot%width-(width-1)/2)*3,trail=6+Math.floor(slot/width)*3;
+      const point={x:ward.x-Math.sin(ward.heading)*trail+Math.cos(ward.heading)*side,z:ward.z-Math.cos(ward.heading)*trail-Math.sin(ward.heading)*side};
+      // Guards keep formation while firing at already active contacts. Repair
+      // ships therefore stay behind the protected ship instead of chasing an
+      // enemy or returning to their independent island escort anchor.
+      sail(g,u,navigable(g,point,stats.radius)?point:waterPoint(g,point,stats.radius),dt,stats.speed,stats.radius);
+    }
   }
   // Prevent stacked silhouettes while respecting the same water navigation.
   for(let i=0;i<living.length;i++)for(let j=i+1;j<living.length;j++) {
