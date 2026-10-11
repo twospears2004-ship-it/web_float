@@ -1,6 +1,6 @@
 import { missions, getMission, missionSites, campaignRules, technologies } from './campaign-content.js';
 import { fieldDecisions } from './expedition-content.js';
-import {unitTypes,fleetRules} from './fleet-content.js';
+import {unitTypes,fleetRules,unitRefits} from './fleet-content.js';
 import {guardCycle} from './fleet.js';
 import {emptyFleet,controlGroupNumbers} from './fleet.js';
 import {migrateAtlas,atlasSummary} from './atlas.js';
@@ -30,10 +30,11 @@ function validateAtlas(c){
 }
 function validateFleet(fleet) {
   if(fleet===undefined)return; // Saves from before the fleet expansion remain valid.
-  check(fleet?.version===1&&integer(fleet.nextId,1,1000001)&&Array.isArray(fleet.units)&&fleet.units.length<=fleetRules.maximum,'함대 형식 또는 정원이 올바르지 않습니다.');
+  check([1,2].includes(fleet?.version)&&integer(fleet.nextId,1,1000001)&&Array.isArray(fleet.units)&&fleet.units.length<=fleetRules.maximum,'함대 형식 또는 정원이 올바르지 않습니다.');
   const ids=new Set();
   for(const u of fleet.units) {
     check(integer(u.id,1,fleet.nextId-1)&&!ids.has(u.id)&&Object.hasOwn(unitTypes,u.type)&&integer(u.level,1,6),'함대 식별자 또는 선종이 올바르지 않습니다.');ids.add(u.id);
+    check(u.refit===undefined||fleet.version===2&&typeof u.refit==='string'&&Object.hasOwn(unitRefits,u.refit)&&unitRefits[u.refit].type===u.type,'함대 개장 장비가 올바르지 않습니다.');
     check(position(u,110)&&finite(u.maxHp,1,10000)&&finite(u.hp,0,u.maxHp)&&finite(u.heading,-Math.PI,Math.PI)&&finite(u.aim,-Math.PI,Math.PI)&&finite(u.cooldown,0,10)&&finite(u.repath,0,1),'함대 전투 상태가 올바르지 않습니다.');
     check(u.command&&['move','attackMove','attack','hold','escort','guard'].includes(u.command.type),'함대 명령을 복원할 수 없습니다.');
     if(['move','attackMove'].includes(u.command.type))check(position(u.command,110),'함대 이동 목표가 올바르지 않습니다.');

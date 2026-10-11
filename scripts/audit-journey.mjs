@@ -15,7 +15,7 @@ import {frontierOperations} from '../src/frontier-content.js';
 import {launchDefense,startDefenseWave} from '../src/frontier.js';
 import {selectExplorationSite,finishExploration} from '../src/exploration.js';
 import {structureHull,repairStructure} from '../src/fortifications.js';
-import {recruitUnit,repairFleet,upgradeUnit,orderUnits} from '../src/fleet.js';
+import {recruitUnit,repairFleet,upgradeUnit,orderUnits,refitUnit,unitRefitState} from '../src/fleet.js';
 import {fleetRules} from '../src/fleet-content.js';
 import {productionTypes,atShore} from '../src/production.js';
 import {validateCampaign,encodeSave,decodeSave} from '../src/save.js';
@@ -24,12 +24,13 @@ import {wallEdges,validWallSlot} from '../src/walls.js';
 let g=createCampaign('destination');build(g,'cannon',-1,-1);
 const limit=Number(process.argv.find(a=>a.startsWith('--limit='))?.slice(8) || Infinity);
 const supportGuard=process.argv.includes('--support-guard');
+const fleetRefits=process.argv.includes('--fleet-refits');
 const requestedOutput=process.argv.find(a=>a.startsWith('--output='))?.slice(9) || 'artifacts',outputPath=path.resolve(requestedOutput),relativeOutput=path.relative(path.resolve('artifacts'),outputPath);
 if(relativeOutput==='..'||relativeOutput.startsWith(`..${path.sep}`)||path.isAbsolute(relativeOutput))throw new Error('Journey output must stay inside artifacts.');
 const output=path.relative(process.cwd(),outputPath).split(path.sep).join('/');
 if(!(limit>=1))throw new Error('Limit must be positive.');
 const report={kind:'fresh continuous story and frontier model',date:new Date().toISOString(),records:[],blocked:null,harvested:0,recall:{calls:0,seconds:0,alreadyInRange:0,notRejoined:0},warning:'One continuous normal economy; simulated combat time does not certify human 20-hour playtime or Steam quality.'};
-report.supportGuard=supportGuard;report.outlays={fleetProduction:0,fleetUpgrade:0,fleetRepair:0,structureRepair:0,islandRepair:0,resupply:0};
+report.supportGuard=supportGuard;report.fleetRefits=fleetRefits;report.outlays={fleetProduction:0,fleetUpgrade:0,fleetRepair:0,structureRepair:0,islandRepair:0,resupply:0,fleetRefit:0};
 await fs.mkdir(`${output}/journey-fixtures`,{recursive:true});
 const itinerary=Array.from({length:12},(_,chapter)=>[
   ...missions.filter(m=>m.chapter===chapter).map(item=>({item,kind:'story'})),
@@ -37,7 +38,7 @@ const itinerary=Array.from({length:12},(_,chapter)=>[
 ]).flat().filter(({item})=>!item.endgame).concat(frontierOperations.filter(item=>item.endgame).map(item=>({item,kind:item.kind})));
 const source=createHash('sha256');for(const name of (await fs.readdir('src')).filter(n=>/\.(js|json)$/.test(n)).sort()){source.update(name);source.update(await fs.readFile(`src/${name}`));}
 report.runtime={node:process.version,sourceHash:source.digest('hex'),controllerHash:createHash('sha256').update(await fs.readFile(new URL(import.meta.url))).digest('hex'),startedAt:new Date().toISOString()};
-function recordFor(state,item,kind){return {id:item.id,kind,result:state.phase,seconds:Math.round(state.campaign.missionSeconds*10)/10,resources:state.resources,hull:Math.round(state.hull),research:state.campaign.research,tiles:state.tiles.length,facilities:state.facilities.map(f=>({id:f.id,type:f.type,x:f.x,z:f.z,edge:f.edge,level:f.level,hp:f.hp,stock:f.stock})),army:state.fleet.units.filter(u=>u.hp>0).map(u=>({id:u.id,type:u.type,level:u.level,hp:u.hp})),kills:state.kills,completed:state.campaign.completed.length,frontier:state.campaign.frontier?.cleared.length||0};}
+function recordFor(state,item,kind){return {id:item.id,kind,result:state.phase,seconds:Math.round(state.campaign.missionSeconds*10)/10,resources:state.resources,hull:Math.round(state.hull),research:state.campaign.research,tiles:state.tiles.length,facilities:state.facilities.map(f=>({id:f.id,type:f.type,x:f.x,z:f.z,edge:f.edge,level:f.level,hp:f.hp,stock:f.stock})),army:state.fleet.units.filter(u=>u.hp>0).map(u=>({id:u.id,type:u.type,level:u.level,hp:u.hp,...(u.refit?{refit:u.refit}:{})})),kills:state.kills,completed:state.campaign.completed.length,frontier:state.campaign.frontier?.cleared.length||0};}
 if(process.argv.includes('--resume')){
   let previous;try{previous=JSON.parse(await fs.readFile(`${output}/journey-audit.json`,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
   // New runs commit a progress manifest at every completed step. Respect its
@@ -117,6 +118,7 @@ function prepareFleet(){
   const chapter=g.campaign.chapter,types=chapter>=3?['torpedo','gunboat','tender','skiff']:chapter>=2?['torpedo','gunboat','skiff']:chapter>=1?['gunboat','skiff','skiff']:['skiff','skiff'];
   for(const type of types)if(g.resources>180&&g.fleet.units.filter(u=>u.hp>0&&u.type===type).length<(type==='skiff'?2:1))spend('fleetProduction',()=>recruitUnit(g,type));
   for(const u of g.fleet.units)while(g.resources>400&&spend('fleetUpgrade',()=>upgradeUnit(g,u.id))){}
+  if(fleetRefits)for(const u of g.fleet.units){const id=(g.campaign.chapter>=8?{skiff:'screen',gunboat:'barrage',torpedo:'evasion',tender:'intensive'}:{skiff:'scout',gunboat:'artillery',torpedo:'penetrator',tender:'remote'})[u.type],state=unitRefitState(g,u,id);if(state.available&&g.resources>=state.cost+150)spend('fleetRefit',()=>refitUnit(g,u.id,id));}
 }
 function guardSupport(){
   if(!supportGuard)return;

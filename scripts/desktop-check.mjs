@@ -5,7 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import {decodeSave} from '../src/save.js';
-import {captureNativeOutput,recordNativeFailure,observeNativeClose} from './native-diagnostics.mjs';
+import {captureNativeOutput,recordNativeFailure,observeNativeClose,waitNativeCloseResult} from './native-diagnostics.mjs';
 const packaged=process.argv.find(a=>a.startsWith('--executable='))?.slice(13),id=new Date().toISOString().replace(/[:.]/g,'-');
 const profile=path.resolve('artifacts','desktop-profiles',id),records=[],errors=[];await fs.mkdir(profile,{recursive:true});
 let app,page;const nativeOutput=[];
@@ -41,7 +41,7 @@ try{
   page=await launch();await page.locator('#continue-button').click();await page.locator('#resume-button').click();
   const primary=path.join(profile,'saves','campaign.json');await fs.chmod(primary,0o444);
   await page.locator('[data-tab="build"]').click();await page.locator('[data-tool="wall"]').click();await page.locator('[data-wall-edge="east"][data-x="-1"][data-z="-1"]').click();
-  await expect(page.locator('#save-status')).toContainText('PC 파일 저장 실패');await app.evaluate(({BrowserWindow})=>{BrowserWindow.getAllWindows()[0].close();});await page.waitForTimeout(500);
+  await expect(page.locator('#save-status')).toContainText('PC 파일 저장 실패');const closeStarted=Date.now();await app.evaluate(({BrowserWindow})=>{BrowserWindow.getAllWindows()[0].close();});const failedClose=await waitNativeCloseResult(nativeOutput,closeStarted);assert.equal(failedClose.ok,false,'Read-only permission must remain until the actual failed close response.');
   assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().length),1);assert.equal((await disk()).resources,406);await expect(page.locator('#pause-overlay')).toBeVisible();
   await fs.chmod(primary,0o666);await page.locator('#resume-button').click();await page.locator('[data-tab="campaign"]').click();await page.locator('#save-button').click();await page.waitForTimeout(200);await close();assert.equal((await disk()).resources,371);
   records.push({action:'real read-only primary blocks unsafe exit, retry preserves new wall',resources:371,restored:true});

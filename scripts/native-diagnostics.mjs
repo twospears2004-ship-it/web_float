@@ -22,6 +22,20 @@ export async function observeNativeClose(app){
     trace('observer-attached');
   });
 }
+export async function waitNativeCloseResult(logs,after,timeout=15000){
+  // Read the observer's actual IPC acknowledgement. A fixed sleep cannot prove
+  // that a failed close has finished before a test restores write permission.
+  const started=Date.now();
+  while(Date.now()-started<timeout){
+    for(const item of logs)for(const line of item.text.split('\n')){
+      const marker=line.indexOf('TIDEHOLD_NATIVE_TRACE ');if(marker<0)continue;
+      let trace;try{trace=JSON.parse(line.slice(marker+'TIDEHOLD_NATIVE_TRACE '.length));}catch{continue;}
+      if(trace.event==='close-ready'&&trace.at>=after)return trace;
+    }
+    await new Promise(resolve=>setTimeout(resolve,25));
+  }
+  throw new Error('Native close did not acknowledge its save result within the diagnostic deadline.');
+}
 async function bounded(promise){let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('diagnostic query timed out')),2000);})]);}finally{clearTimeout(timer);}}
 export async function recordNativeFailure({app,page,profile,error,errors,logs,records,executable}){
   const report={date:new Date().toISOString(),executable,profile,error:error.message,records,errors,nativeOutput:logs,pageClosed:page?.isClosed()??null,processExitCode:app?.process().exitCode??null};

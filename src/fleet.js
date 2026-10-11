@@ -1,4 +1,4 @@
-import {fleetRules,unitTypes} from './fleet-content.js';
+import {fleetRules,unitTypes,unitRefits} from './fleet-content.js';
 import {waterPoint,waterPath,navigable,clearLine} from './navigation.js';
 import {hullDistance} from './hull.js';
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z),emit=(g,e)=>{g.events.push(e);if(g.events.length>180)g.events.shift();};
@@ -28,7 +28,9 @@ function pruneControlGroups(fleet) {
 }
 export function unitStats(g,u) {
   const base=unitTypes[u.type],level=u.level || 1,damage=(1+(level-1)*0.3)*(1+(g.campaign?.tech.ballistics || 0)*0.12);
-  return {...base,hp:Math.round(base.hp*(1+(level-1)*0.3)),damage:base.damage*damage,heal:base.heal?base.heal*(1+(level-1)*0.2):0,range:base.range+(level-1),speed:base.speed*(1+(g.campaign?.tech.navigation || 0)*0.04)};
+  const stats={...base,hp:Math.round(base.hp*(1+(level-1)*0.3)),damage:base.damage*damage,heal:base.heal?base.heal*(1+(level-1)*0.2):0,range:base.range+(level-1),speed:base.speed*(1+(g.campaign?.tech.navigation || 0)*0.04)},refit=unitRefits[u.refit];
+  if(!refit||refit.type!==u.type)return stats;
+  return {...stats,hp:Math.round(stats.hp*(refit.hp||1)),damage:stats.damage*(refit.damage||1),heal:stats.heal*(refit.heal||1),range:stats.range+(refit.range||0),speed:stats.speed*(refit.speed||1),pierce:Math.min(1,(stats.pierce||0)+(refit.pierce||0)),splash:(stats.splash||0)+(refit.splash||0)};
 }
 export function fleetCapacity(g) {const yard=Math.max(0,...g.facilities.filter(f=>f.type==='shipyard'&&f.hp!==0).map(f=>f.level));return yard?Math.min(fleetRules.maximum,fleetRules.baseCapacity+yard*fleetRules.capacityPerLevel):0;}
 export function fleetSupply(g) {return (g.fleet?.units || []).filter(u=>u.hp>0).reduce((n,u)=>n+unitTypes[u.type].supply,0);}
@@ -50,6 +52,31 @@ export function recruitUnit(g,type) {
   g.fleet.units.push(u);emit(g,{type:'build',x:u.x,z:u.z});g.message=`${stats.name} 출동 준비. 클릭·드래그로 선택하고 우클릭으로 지휘하세요.`;return true;
 }
 export function unitUpgradeCost(u) {return Math.round(unitTypes[u.type].cost*fleetRules.upgradeCostScale*u.level);}
+export function unitRefitState(g,u,id) {
+  const refit=unitRefits[id],valid=id==='standard'||!!refit&&refit.type===u.type;
+  const cost=valid?Math.round(unitTypes[u.type].cost*(id==='standard'?1:2+u.level*0.5)):0,current=(u.refit||'standard')===id;
+  let reason='';
+  if(!valid)reason='이 선종의 개장을 선택하세요.';
+  else if(current)reason='현재 장비';
+  else if(!(u.hp>0))reason='살아 있는 함선만 개장할 수 있습니다.';
+  else if(!manageable(g)||g.campaign.pendingChoice)reason='정박지 또는 교전이 끝난 현장 정비에서 개장하세요.';
+  else if(dist(u,g.island)>fleetRules.serviceRange)reason='함선을 섬의 정비 범위 34m 안으로 이동하세요.';
+  else if(!g.facilities.some(f=>f.type==='shipyard'&&f.hp!==0&&f.level>=3))reason='정상 조선소 3단계가 필요합니다.';
+  else if(refit&&(g.campaign.chapter<refit.unlock||u.level<refit.level))reason=`${refit.unlock+1}번째 해역 · 함선 ${refit.level}단계 필요`;
+  else if(g.resources<cost)reason=`자원 ${cost-g.resources} 부족`;
+  const candidate={...u};if(id==='standard')delete candidate.refit;else if(valid)candidate.refit=id;
+  return {id,name:refit?.name||'표준 장비',cost,current,available:valid&&!reason,reason,stats:unitStats(g,u),next:unitStats(g,candidate)};
+}
+export function refitUnit(g,id,refit) {
+  const u=g.fleet?.units.find(u=>u.id===id&&u.hp>0);if(!u)return false;
+  const state=unitRefitState(g,u,refit);if(!state.available)return deny(g,state.reason);
+  // Keep damage ratio, cooldown, movement orders and formation. Switching roles
+  // cannot repair a ship, refund equipment or reset a weapon's firing timer.
+  const ratio=u.hp/u.maxHp;g.resources-=state.cost;
+  if(refit==='standard')delete u.refit;else {u.refit=refit;g.fleet.version=2;}
+  u.maxHp=state.next.hp;u.hp=u.maxHp*ratio;
+  g.message=`${unitTypes[u.type].name} #${u.id}: ${state.name} 개장. 손상 비율을 유지했습니다.`;return true;
+}
 export function upgradeUnit(g,id) {
   const u=g.fleet?.units.find(u=>u.id===id&&u.hp>0),maximum=Math.min(6,2+Math.floor((g.campaign?.chapter || 0)/2));
   if(!manageable(g)||!u||dist(u,g.island)>fleetRules.serviceRange)return deny(g,'조선소 주변 정비 중인 함대만 강화할 수 있습니다.');
