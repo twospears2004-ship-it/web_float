@@ -45,3 +45,4 @@
 #import-save-notice{grid-column:1/-1;font-size:11px;line-height:1.8}
 #import-save-notice p{margin:0 0 8px}
 .research-card{display:grid;grid-template-columns:1fr;gap:4px;align-items:start}.research-card small{line-height:1.7;margin-top:2px}.research-card b{margin:4px 0 0;white-space:normal}.research-card .research-effect{color:#c5d9b6}.research-card .research-reason{color:#dfc18a}.research-card:disabled{opacity:.65}.research-card:focus-visible{outline:2px solid #e2c58a;outline-offset:2px}
+.facility-growth{padding:12px;border:1px solid #60765b;border-radius:7px;background:#1b393d;margin:14px 0 8px}.facility-growth p{font-size:12px!important;line-height:1.7!important;color:#cee0c2!important;margin:0 0 7px!important}.facility-growth p:last-child{margin-bottom:0!important;color:#dfc18a!important}#facility-panel [data-action]:focus-visible,#facility-panel [data-targeting]:focus-visible{outline:2px solid #e2c58a;outline-offset:2px}

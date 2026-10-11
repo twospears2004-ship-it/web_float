@@ -92,17 +92,29 @@ export function expand(g, x, z) {
   g.tiles.push({ x, z }); g.maxHull += rules.expansionHull; g.hull += rules.expansionHull;
   g.message = '섬 확장 완료. 건설 공간과 최대 내구도가 늘었습니다.'; emit(g, { type: 'build', x: g.island.x + x * balance.tileSize, z: g.island.z + z * balance.tileSize }); return true;
 }
-export function upgrade(g, id) {
+export function upgradeStatus(g,id) {
   const f = g.facilities.find(f => f.id === id);
-  if (!canManage(g)) return deny(g, '전투와 항해 중에는 강화할 수 없습니다.');
-  if (!f || f.level >= rulesFor(g).maxLevel) return deny(g, '최대 단계의 무장입니다.');
-  if(g.campaign && powerUsed(g)+facilityPower({...f,level:f.level+1})-facilityPower(f)>powerCapacity(g))return deny(g,'강화에 필요한 전력이 부족합니다. 동력 확장을 연구하거나 구성을 바꾸세요.');
-  const cost=upgradeCost(f,g), investment=facilityInvestment(f,g);
-  if(f.hp===0)return deny(g,'파괴된 시설을 복구한 뒤 강화하세요.');
-  if (!spend(g, cost)) return false;
+  const maximum=rulesFor(g).maxLevel,cost=f?upgradeCost(f,g):0,nextLevel=f?Math.min(maximum,f.level+1):0;
+  const currentPower=g.campaign&&f?facilityPower(f):0,nextPower=g.campaign&&f?facilityPower({...f,level:nextLevel}):0;
+  const used=g.campaign?powerUsed(g):0,capacity=g.campaign?powerCapacity(g):0;
+  const powerShortage=g.campaign?Math.max(0,used+nextPower-currentPower-capacity):0,resourceShortage=Math.max(0,cost-g.resources);
+  let reason='';
+  if(!f)reason='강화할 시설을 선택하세요.';
+  else if(f.level>=maximum)reason=`이 해역 최대 Lv.${maximum}`;
+  else if(g.paused)reason='일시정지를 해제하면 강화할 수 있습니다.';
+  else if(!canManage(g))reason='전투와 항해가 끝난 정비 중 강화할 수 있습니다.';
+  else if(f.hp===0)reason='파괴된 시설을 복구한 뒤 강화하세요.';
+  else if(powerShortage||resourceShortage)reason=[powerShortage?`전력 ${powerShortage} 부족 · 동력 연구 또는 시설 구성 변경`:'',resourceShortage?`자원 ${resourceShortage} 부족`:''].filter(Boolean).join(' · ');
+  return {available:!reason,reason,cost,maximum,nextLevel,currentPower,nextPower,used,capacity,powerShortage,resourceShortage};
+}
+export function upgrade(g, id) {
+  const state=upgradeStatus(g,id);
+  if(!state.available)return deny(g,state.reason);
+  const f=g.facilities.find(f=>f.id===id),cost=state.cost,investment=facilityInvestment(f,g);
+  g.resources-=cost;
   f.investment=investment+cost;
   const oldHull=structureHull(f);f.level++;if(f.hp!==undefined)f.hp+=structureHull(f)-oldHull;
-  const effect={wall:'성벽의 최대 내구도가 증가했습니다.',crane:'회수율과 회수 범위가 증가했습니다.',fishery:'어획량과 원정 어획 한도가 증가했습니다.',farm:'작물 수확량이 증가했습니다.',laboratory:'조사 범위가 증가했습니다. 4·7단계에서 유형별 표본도 늘어납니다.',shield:'방호율과 적용 범위가 증가했습니다.',workshop:'교전 밖의 자동 수리량이 증가했습니다.'}[f.type] || '공격력과 사거리가 증가했습니다.';
+  const effect={wall:'성벽의 최대 내구도가 증가했습니다.',crane:'회수율과 회수 범위가 증가했습니다.',fishery:'어획량과 원정 어획 한도가 증가했습니다.',farm:'작물 수확량이 증가했습니다.',laboratory:'조사 범위가 증가했습니다. 4·7단계에서 유형별 표본도 늘어납니다.',shield:'방호율과 적용 범위가 증가했습니다.',workshop:'교전 밖의 자동 수리량이 증가했습니다.',shipyard:'함대 정원과 선종 생산 단계를 높였습니다.'}[f.type] || '공격력과 사거리가 증가했습니다.';
   g.message = `${rulesFor(g).weapons[f.type].name} ${f.level}단계. ${effect}`; return true;
 }
 export function setTargeting(g,id,strategy) {

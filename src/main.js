@@ -18,6 +18,7 @@ import {launchDefense,startDefenseWave,retryDefense,availableDefenses,availableS
 import { chapters, missions, getMission, getChapter, abilityDefinitions, bossTactics, enemyTactics } from './campaign-content.js';
 import { launchMission, returnToHarbor, retryMission, availableMissions, useAbility, repairEscort, resupplyAbilities, researchTechnology, powerCapacity, powerUsed, facilityPower, currentFieldDecision, resolveFieldDecision } from './campaign.js';
 import { saveCampaign, loadCampaign, encodeSave, decodeSave, SAVE_KEY } from './save.js';
+import {facilityGrowth} from './facility-growth.js';
 import {createDesktopBridge} from './desktop-bridge.js';
 import {createRenderCadence} from './render-cadence.js';
 import { GameAudio, loadSettings, SETTINGS_KEY } from './audio.js';
@@ -661,9 +662,11 @@ function update(force = false) {
     document.querySelector(`[data-distance="${s.id}"]`).textContent = `${Math.round(distance(game.island, s))} m`;
   }
   const selected = game.facilities.find(f => f.id === ui.selected);
-  const facilityKey = selected ? `${selected.id}:${selected.level}:${Math.ceil(selected.hp ?? -1)}:${selected.targeting}:${selected.stock}:${selected.cropProgress}:${selected.catchUsed}:${Math.floor(selected.travel || 0)}:${selected.totalProduced}:${game.campaign?.surveyProgress}:${game.campaign?.bonusResearch}:${atShore(game,selected)}:${game.resources}:${manageable}:${game.campaign?.darknessSeconds>0}:${JSON.stringify(game.campaign?.buffs)}:${JSON.stringify(game.campaign?.tech)}` : `none:${game.facilities.length}`;
+  const facilityKey = selected ? `${selected.id}:${selected.level}:${Math.ceil(selected.hp ?? -1)}:${selected.targeting}:${selected.stock}:${selected.cropProgress}:${selected.catchUsed}:${Math.floor(selected.travel || 0)}:${selected.totalProduced}:${game.campaign?.surveyProgress}:${game.campaign?.bonusResearch}:${atShore(game,selected)}:${game.resources}:${manageable}:${game.campaign?.chapter}:${game.campaign?powerUsed(game):0}:${game.campaign?.darknessSeconds>0}:${JSON.stringify(game.campaign?.buffs)}:${JSON.stringify(game.campaign?.tech)}` : `none:${game.facilities.length}`;
   if (force || facilityKey !== lastFacilityKey) {
     lastFacilityKey = facilityKey;
+    const panel=$('facility-panel'),same=selected&&panel.dataset.facility===String(selected.id),controls=same?[...panel.querySelectorAll('[data-action], [data-targeting]')]:[],focused=controls.includes(document.activeElement)?document.activeElement:null;
+    panel.dataset.facility=selected?String(selected.id):'';
     if (selected) {
       const w = weaponStats(selected, game);
       $('facility-panel').innerHTML = `<div class="selected-heading"><span class="facility-icon ${selected.type}">${icon(selected.type)}</span><div><span class="eyebrow">SELECTED FACILITY</span><h3>${w.name} <em>Lv.${selected.level}</em></h3></div></div><div class="weapon-stats"><span>공격력 <b>${Math.round(w.damage*10)/10}</b></span><span>사거리 <b>${w.range}m</b></span><span>주기 <b>${w.interval}초</b></span></div><p>${w.description}${w.range>0?' · 황금빛 원이 적용 범위입니다.':''}</p><button data-action="upgrade" class="upgrade-button" ${!manageable || selected.level >= rules.maxLevel || game.resources < upgradeCost(selected,game) ? 'disabled' : ''}>${selected.level >= rules.maxLevel ? '최대 단계' : `강화하기 · ◆ ${upgradeCost(selected,game)}`}</button><div class="facility-secondary"><button data-action="move" ${!manageable ? 'disabled' : ''}>재배치 · 무료</button><button data-action="demolish" ${!manageable ? 'disabled' : ''}>철거 · 60% 회수</button></div>`;
@@ -675,7 +678,7 @@ function update(force = false) {
         if(selected.hp!==undefined){$('facility-panel').insertAdjacentHTML('beforeend',`<p class="facility-power">시설 내구도 ${Math.ceil(selected.hp)} / ${structureHull(selected)}${selected.hp===0?' · 파괴되어 작동하지 않습니다.':''}</p><button data-action="restore" class="upgrade-button" ${!manageable||structureRepairCost(selected)<=0||game.resources<structureRepairCost(selected)?'disabled':''}>${selected.type==='mine'&&selected.hp===0?'기뢰 재무장':'시설 복구'} · ◆ ${structureRepairCost(selected)}</button>`);if(selected.hp===0)$('facility-panel').querySelector('[data-action="upgrade"]').disabled=true;}
         if(w.damage===0 && selected.type!=='wall') {
           const stats=productionStats(selected,game),panel=$('facility-panel'),metrics=panel.querySelector('.weapon-stats');
-          if(selected.type==='shipyard')metrics.innerHTML=`<span>함대 정원 <b>${fleetSupply(game)} / ${fleetCapacity(game)}</b></span><span>해금 선종 <b>${Object.values(unitTypes).filter(u=>u.unlock<=game.campaign.chapter && u.yardLevel<=selected.level).length}종</b></span><span>생산 <b>함대 메뉴</b></span>`;
+          if(selected.type==='shipyard')metrics.innerHTML=`<span>함대 정원 <b>${fleetSupply(game)} / ${fleetCapacity(game)}</b></span><span>해금 선종 <b>${Object.values(unitTypes).filter(u=>u.unlock<=game.campaign.chapter && u.yardLevel<=Math.max(0,...game.facilities.filter(f=>f.type==='shipyard'&&f.hp!==0).map(f=>f.level))).length}종</b></span><span>생산 <b>함대 메뉴</b></span>`;
           else if(selected.type==='shield')metrics.innerHTML=`<span>방호 <b>${30+(selected.level-1)*4}%</b></span><span>적용 범위 <b>${w.range}m</b></span><span>방향 <b>배치한 쪽</b></span>`;
           else if(selected.type==='workshop')metrics.innerHTML=`<span>자동 수리 <b>${selected.level*2}/초</b></span><span>조건 <b>교전 밖</b></span>`;
           else if(selected.type==='crane')metrics.innerHTML=`<span>추가 회수 <b>${Math.round(stats.recovery*100)}%</b></span><span>범위 <b>${stats.range}m</b></span><span>누적 생산 <b>${selected.totalProduced || 0}</b></span>`;
@@ -686,11 +689,18 @@ function update(force = false) {
           if(selected.type==='laboratory')panel.insertAdjacentHTML('beforeend',`<p class="production-note">${game.campaign.stage==='harbor'?`보관한 표본 ${game.campaign.surveyArchiveProgress || 0}/4 · 출항 후 새로운 목표를 조사하세요.`:`유형마다 한 번 조사 · ${game.operation?.kind==='explore'?'새 지점의 귀환 시':'첫 임무 완료 시'} 추가 연구 ${game.campaign.bonusResearch || 0} · 실패하면 미완료 조사는 복구됩니다.`}</p>`);
           if(['fishery','farm'].includes(selected.type))panel.insertAdjacentHTML('beforeend',`<button data-action="collect" class="upgrade-button" ${!manageable || !(selected.stock>0)?'disabled':''}>수확하기 · ◆ ${selected.stock || 0}</button>`);
         }
-        const delta=facilityPower({...selected,level:selected.level+1})-facilityPower(selected);
-        if(powerUsed(game)+delta>powerCapacity(game)){$('facility-panel').querySelector('[data-action="upgrade"]').disabled=true;}
         $('facility-panel').insertAdjacentHTML('beforeend',`<p class="facility-power">전력 ${facilityPower(selected)} · 강화 후 ${facilityPower({...selected,level:Math.max(selected.level,Math.min(rules.maxLevel,selected.level+1))})} / 섬 용량 ${powerCapacity(game)}<br/>이 해역 최대 Lv.${rules.maxLevel} · 후반 해역에서 최대 9단계</p>${w.damage>0?`<label class="targeting-control">우선 공격 <select data-targeting ${!manageable?'disabled':''}>${Object.entries({nearest:'가까운 적',support:'복구·방호·증원',armored:'장갑이 강한 적',weakest:'내구도가 낮은 적'}).map(([id,name])=>`<option value="${id}" ${id===(selected.targeting || 'nearest')?'selected':''}>${name}</option>`).join('')}</select></label>`:''}`);
       }
+      const growth=facilityGrowth(game,selected),button=panel.querySelector('[data-action="upgrade"]');button.disabled=!growth.available;
+      const preview=document.createElement('div');preview.className='facility-growth';preview.dataset.facilityGrowth='';
+      const effects=document.createElement('p');effects.textContent=`현재 ${growth.current}${growth.next?` → 다음 ${growth.next}`:''}`;preview.append(effects);
+      if(game.campaign&&selected.type!=='wall'&&growth.next){const hull=document.createElement('p');hull.textContent=`최대 시설 내구도 ${structureHull(selected)} → ${structureHull({...selected,level:growth.nextLevel})}`;preview.append(hull);}
+      const reason=document.createElement('p');reason.dataset.upgradeReason='';reason.textContent=growth.reason||'강화 가능';preview.append(reason);button.before(preview);
     } else $('facility-panel').innerHTML = `<div class="empty-selection"><span>⌖</span><p>기존 시설을 클릭하면<br/>사거리와 강화 정보를 볼 수 있습니다.</p></div>`;
+    // Keep actionable controls across stats/resource refreshes, including a
+    // focused upgrade or targeting selector during keyboard operation.
+    for(const old of controls){const selector=old.dataset.action?`[data-action="${old.dataset.action}"]`:'[data-targeting]',next=panel.querySelector(selector);if(!next)continue;const value=next.value;old.innerHTML=next.innerHTML;old.disabled=next.disabled;if(old.tagName==='SELECT')old.value=value;next.replaceWith(old);}
+    if(focused){const target=focused.isConnected&&!focused.disabled?focused:panel;target.focus({preventScroll:true});}
   }
   $('placement-panel').hidden = !ui.tool && !ui.board;
   $('board-toggle').setAttribute('aria-expanded',String(ui.board || !!ui.tool));$('board-toggle').textContent=ui.board?'배치도 접기':'배치도로 시설 선택';$('cancel-tool').hidden=!ui.tool;
