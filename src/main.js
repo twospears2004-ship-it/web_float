@@ -9,7 +9,8 @@ import {renderFleetRefits} from './fleet-refit-view.js';
 import {sameTypeUnitIds} from './fleet-selection.js';
 import {fleetTargetingModes,setFleetTargeting,armedUnit} from './fleet-targeting.js';
 import {renderFleetTargeting} from './fleet-targeting-view.js';
-import {structureHull,structureRepairCost,repairStructure} from './fortifications.js';
+import {structureHull,structureRepairCost,repairStructure,repairAllStructures} from './fortifications.js';
+import {renderStructureService} from './structure-service-view.js';
 import {wallEdges,wallEdge,wallAt} from './walls.js';
 import {getOperation,defenseContracts,defensePatterns} from './frontier-content.js';
 import {siegeContracts,siegePatterns,basePower} from './siege-content.js';
@@ -58,7 +59,7 @@ app.innerHTML = `
       <div class="sidebar-tabs"><button class="active" data-tab="build">섬 정비</button><button data-tab="voyage">해역 <span id="cleared-count">0/3</span></button><button data-tab="fleet" hidden>함대</button><button data-tab="campaign" hidden>캠페인</button><button data-tab="atlas" hidden>기록</button></div>
       <div id="build-panel" class="tab-panel">
         <div class="section-heading"><span class="eyebrow">BUILD & GROW</span><h2>다음 항해를 준비하세요</h2><p>무장 · 생산 · 연구로 섬을 키우세요.</p></div>
-        <section id="refit-summary" class="refit-summary" hidden aria-labelledby="refit-title"><h3 id="refit-title">정비할 시설</h3><p id="refit-count"></p><div id="refit-list"></div><small>시설을 선택한 뒤 복구·수확 버튼을 눌러 진행하세요. 시설 복구는 섬 내구도 수리와 별개입니다.</small></section>
+        <section id="refit-summary" class="refit-summary" hidden aria-labelledby="refit-title"><h3 id="refit-title">정비할 시설</h3><p id="refit-count" tabindex="-1"></p><button id="repair-all-structures" aria-describedby="refit-repair-note">전체 시설 복구</button><p id="refit-repair-note"></p><div id="refit-list"></div><small>전체 복구 또는 필요한 시설을 선택해 개별 복구·수확하세요. 시설 복구는 섬·함대 수리와 별개입니다.</small></section>
         <div class="build-actions">
           <button class="build-card" data-tool="cannon"><span class="facility-icon cannon">↗</span><span><strong>연사포</strong><small>빠른 단일 공격</small></span><em>◆ 65</em></button>
           <button class="build-card" data-tool="mortar"><span class="facility-icon mortar">◉</span><span><strong>박격포</strong><small>느린 범위 공격</small></span><em>◆ 100</em></button>
@@ -255,6 +256,7 @@ $('refit-list').addEventListener('click',e=>{
   $('facility-panel').scrollIntoView({block:'nearest',behavior:'instant'});
   $('facility-panel').focus({preventScroll:true});
 });
+$('repair-all-structures').addEventListener('click',()=>{if(repairAllStructures(game))persist();update(true);});
 $('field-choice').addEventListener('click',e=>{const id=e.target.closest('[data-field-choice]')?.dataset.fieldChoice;if(id&&resolveFieldDecision(game,id)){update(true);persist();}});
 $('show-route').addEventListener('change',()=>update(true));
 $('field-repair').addEventListener('click',()=>{repair(game);update(true);persist();});
@@ -642,8 +644,11 @@ function updateCampaign(force) {
 }
 let refitKey='';
 function updateRefitSummary(){
+  const repairButton=$('repair-all-structures'),focused=document.activeElement===repairButton;
+  renderStructureService(repairButton,$('refit-repair-note'),game);
   const items=game.campaign&&ui.started?game.facilities.filter(f=>structureRepairCost(f)>0||(['farm','fishery'].includes(f.type)&&f.stock>0)):[];
   $('refit-summary').hidden=!items.length;
+  if(focused&&repairButton.disabled)($('refit-summary').hidden?$('board-toggle'):$('refit-count')).focus({preventScroll:true});
   if(!items.length){refitKey='';return;}
   const key=JSON.stringify(items.map(f=>[f.id,f.type,f.level,f.hp,f.stock,f.x,f.z,f.edge]));if(key===refitKey)return;refitKey=key;
   const damaged=items.filter(f=>structureRepairCost(f)>0).length,stock=items.reduce((sum,f)=>sum+(['farm','fishery'].includes(f.type)?f.stock||0:0),0);
